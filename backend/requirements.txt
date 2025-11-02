@@ -1,0 +1,36 @@
+# Web 框架
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+
+# 配置管理
+pydantic-settings==2.1.0
+python-dotenv==1.0.0
+
+# 异步文件操作
+aiofiles==23.2.1
+
+# LightRAG 核心依赖
+numpy
+networkx
+pandas>=2.0.0
+nano-vectordb
+tiktoken
+json-repair
+tenacity
+pypinyin
+httpx
+aiohttp
+openai
+ollama
+pipmaster
+
+# 文档解析依赖
+python-pptx==0.6.23
+pdfplumber==0.10.3
+pypdfium2>=5.0.0  # pdfplumber的to_image()功能需要此依赖
+PyPDF2==3.0.1
+Pillow>=9.0.0
+
+# 图片渲染依赖（Windows环境需要）
+comtypes>=1.1.14; sys_platform == 'win32'
