@@ -87,7 +87,7 @@ jobs:
         # 确保目录存在
         mkdir -p /opt/lightrag-web/backend
         # 创建 .env 文件
-        cat > /opt/lightrag-web/backend/.env << 'ENVEOF' | sed 's/^        //'
+        cat > /opt/lightrag-web/backend/.env << 'ENVEOF'
         LLM_BINDING=openai
         LLM_MODEL=deepseek-ai/DeepSeek-R1-0528-Qwen3-8B
         LLM_BINDING_API_KEY=${LLM_API_KEY}
@@ -191,9 +191,9 @@ jobs:
         username: ${{ env.EC2_USER }}
         key: ${{ secrets.EC2_SSH_KEY }}
         port: 22
-        source: "deploy/*"
+        source: "deploy/"
         target: "/tmp/lightrag-deploy"
-        strip_components: 0
+        strip_components: 1
     
     - name: Deploy on EC2
       uses: appleboy/ssh-action@v1.0.3
@@ -203,7 +203,8 @@ jobs:
         key: ${{ secrets.EC2_SSH_KEY }}
         port: 22
         script: |
-          cd /tmp/lightrag-deploy
+          cd /tmp/lightrag-deploy || exit 1
+          [ -f "deploy.sh" ] || { echo "错误: deploy.sh 不存在"; ls -la; exit 1; }
           chmod +x deploy.sh
           export LLM_API_KEY="${{ secrets.LLM_BINDING_API_KEY }}"
           ./deploy.sh
