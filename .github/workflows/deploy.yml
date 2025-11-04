@@ -1,0 +1,201 @@
+name: Deploy to AWS EC2
+
+on:
+  push:
+    branches:
+      - main  # 只在 main 分支推送时触发
+  workflow_dispatch:  # 允许手动触发
+
+env:
+  AWS_REGION: us-east-1  # 修改为你的 AWS 区域
+  EC2_INSTANCE_IP: ${{ secrets.EC2_INSTANCE_IP }}  # EC2 实例的公网 IP
+  EC2_USER: ec2-user  # 根据你的 AMI 修改（Ubuntu 通常为 ubuntu，Amazon Linux 2023 为 ec2-user）
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+    
+    - name: Build frontend
+      working-directory: ./frontend
+      run: |
+        npm ci
+        npm run build
+    
+    - name: Create deployment package
+      run: |
+        mkdir -p deploy
+        cp -r backend deploy/
+        cp -r frontend/dist deploy/frontend
+        cp -r LightRAG deploy/
+        # 排除不需要的文件
+        rm -rf deploy/backend/venv
+        rm -rf deploy/backend/__pycache__
+        rm -rf deploy/backend/**/__pycache__
+        rm -rf deploy/backend/uploads
+        rm -rf deploy/backend/data
+        # 创建部署脚本
+        cat > deploy/deploy.sh << 'EOF'
+        #!/bin/bash
+        set -e
+        
+        echo "=== 部署 LightRAG Web 应用 ==="
+        
+        # 1. 备份现有部署
+        if [ -d "/opt/lightrag-web" ]; then
+          echo "备份现有部署..."
+          sudo mv /opt/lightrag-web /opt/lightrag-web.backup.$(date +%Y%m%d_%H%M%S)
+        fi
+        
+        # 2. 创建应用目录
+        sudo mkdir -p /opt/lightrag-web
+        sudo chown $USER:$USER /opt/lightrag-web
+        
+        # 3. 复制文件
+        echo "复制文件..."
+        cp -r backend /opt/lightrag-web/
+        cp -r frontend /opt/lightrag-web/
+        cp -r LightRAG /opt/lightrag-web/
+        
+        # 4. 创建 Python 虚拟环境
+        echo "设置 Python 环境..."
+        cd /opt/lightrag-web/backend
+        python3 -m venv venv
+        source venv/bin/activate
+        pip install --upgrade pip
+        pip install -r requirements.txt
+        
+        # 5. 创建必要的目录
+        mkdir -p /opt/lightrag-web/backend/uploads
+        mkdir -p /opt/lightrag-web/backend/data
+        mkdir -p /opt/lightrag-web/backend/uploads/conversations
+        mkdir -p /opt/lightrag-web/backend/uploads/metadata
+        mkdir -p /opt/lightrag-web/backend/uploads/image_cache
+        
+        # 6. 设置环境变量
+        echo "配置 .env 文件..."
+        cat > /opt/lightrag-web/backend/.env << EOF
+        LLM_BINDING=openai
+        LLM_MODEL=deepseek-ai/DeepSeek-R1-0528-Qwen3-8B
+        LLM_BINDING_API_KEY=${LLM_API_KEY}
+        LLM_BINDING_HOST=https://api.siliconflow.cn/v1
+        EMBEDDING_BINDING=siliconcloud
+        EMBEDDING_MODEL=Qwen/Qwen3-Embedding-0.6B
+        EMBEDDING_DIM=1024
+        EMBEDDING_BINDING_HOST=http://localhost:11434
+        MAX_ASYNC=2
+        TIMEOUT=400
+        IMAGE_RESOLUTION=150
+        MAX_FILE_SIZE=52428800
+        MAX_FILES_PER_CONVERSATION=20
+        EOF
+        chmod 600 /opt/lightrag-web/backend/.env
+        echo "✅ .env 文件已配置（API Key 已从 GitHub Secrets 读取）"
+        
+        # 7. 安装前端依赖（如果需要）
+        cd /opt/lightrag-web/frontend
+        if [ ! -d "node_modules" ]; then
+          npm ci --production
+        fi
+        
+        # 8. 重启服务
+        echo "重启服务..."
+        sudo systemctl restart lightrag-backend || echo "服务未配置，跳过重启"
+        sudo systemctl restart nginx || echo "Nginx 未配置，跳过重启"
+        
+        echo "=== 部署完成 ==="
+        EOF
+        chmod +x deploy/deploy.sh
+        
+        # 创建 systemd 服务文件
+        cat > deploy/lightrag-backend.service << 'EOF'
+        [Unit]
+        Description=LightRAG Web Backend Service
+        After=network.target
+        
+        [Service]
+        Type=simple
+        User=ec2-user
+        WorkingDirectory=/opt/lightrag-web/backend
+        Environment="PATH=/opt/lightrag-web/backend/venv/bin"
+        ExecStart=/opt/lightrag-web/backend/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+        Restart=always
+        RestartSec=10
+        
+        [Install]
+        WantedBy=multi-user.target
+        EOF
+        
+        # 创建 Nginx 配置
+        cat > deploy/nginx.conf << 'EOF'
+        server {
+            listen 80;
+            server_name _;
+            
+            # 前端静态文件
+            location / {
+                root /opt/lightrag-web/frontend/dist;
+                try_files $uri $uri/ /index.html;
+                index index.html;
+            }
+            
+            # 后端 API 代理
+            location /api/ {
+                proxy_pass http://127.0.0.1:8000;
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection 'upgrade';
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+                proxy_cache_bypass $http_upgrade;
+                
+                # 文件上传大小限制
+                client_max_body_size 50M;
+            }
+            
+            # WebSocket 支持（如果需要）
+            location /ws/ {
+                proxy_pass http://127.0.0.1:8000;
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection "upgrade";
+            }
+        }
+        EOF
+    
+    - name: Copy files to EC2
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.EC2_INSTANCE_IP }}
+        username: ${{ env.EC2_USER }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        port: 22
+        source: "deploy/*"
+        target: "/tmp/lightrag-deploy"
+        strip_components: 0
+    
+    - name: Deploy on EC2
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.EC2_INSTANCE_IP }}
+        username: ${{ env.EC2_USER }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        port: 22
+        script: |
+          cd /tmp/lightrag-deploy
+          chmod +x deploy.sh
+          export LLM_API_KEY="${{ secrets.LLM_BINDING_API_KEY }}"
+          ./deploy.sh
+

@@ -113,6 +113,20 @@ MAX_FILES_PER_CONVERSATION=20
 - 如果未配置 `.env`，应用将无法正常启动（API Key 必需）
 - 参考 `backend/.env.example` 查看所有可配置项
 
+## 部署到生产环境
+
+### AWS EC2 部署
+
+**详细部署指南请参考**: [`部署.md`](部署.md)
+
+**快速步骤**:
+1. 创建 EC2 实例（t3.small 或更高）
+2. 配置 GitHub Secret: `LLM_BINDING_API_KEY`
+3. 推送到 `main` 分支触发自动部署
+4. 配置 systemd 服务和 Nginx
+
+---
+
 ## 启动应用
 
 ### 方式一：一键启动（推荐开发使用）
