@@ -87,21 +87,21 @@ jobs:
         # 确保目录存在
         mkdir -p /opt/lightrag-web/backend
         # 创建 .env 文件
-        cat > /opt/lightrag-web/backend/.env << EOF
-LLM_BINDING=openai
-LLM_MODEL=deepseek-ai/DeepSeek-R1-0528-Qwen3-8B
-LLM_BINDING_API_KEY=${LLM_API_KEY}
-LLM_BINDING_HOST=https://api.siliconflow.cn/v1
-EMBEDDING_BINDING=siliconcloud
-EMBEDDING_MODEL=Qwen/Qwen3-Embedding-0.6B
-EMBEDDING_DIM=1024
-EMBEDDING_BINDING_HOST=http://localhost:11434
-MAX_ASYNC=2
-TIMEOUT=400
-IMAGE_RESOLUTION=150
-MAX_FILE_SIZE=52428800
-MAX_FILES_PER_CONVERSATION=20
-EOF
+        cat > /opt/lightrag-web/backend/.env << 'ENVEOF'
+        LLM_BINDING=openai
+        LLM_MODEL=deepseek-ai/DeepSeek-R1-0528-Qwen3-8B
+        LLM_BINDING_API_KEY=${LLM_API_KEY}
+        LLM_BINDING_HOST=https://api.siliconflow.cn/v1
+        EMBEDDING_BINDING=siliconcloud
+        EMBEDDING_MODEL=Qwen/Qwen3-Embedding-0.6B
+        EMBEDDING_DIM=1024
+        EMBEDDING_BINDING_HOST=http://localhost:11434
+        MAX_ASYNC=2
+        TIMEOUT=400
+        IMAGE_RESOLUTION=150
+        MAX_FILE_SIZE=52428800
+        MAX_FILES_PER_CONVERSATION=20
+        ENVEOF
         # 检查文件是否创建成功
         if [ -f "/opt/lightrag-web/backend/.env" ]; then
           chmod 600 /opt/lightrag-web/backend/.env
