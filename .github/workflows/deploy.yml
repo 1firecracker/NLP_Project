@@ -33,7 +33,10 @@ jobs:
         npm run build
         # 精准替换：仅将 http://localhost:8000/api 替换为 /api，避免出现 /api/api
         sed -i -e 's|http://localhost:8000/api|/api|g' dist/index.html dist/assets/*.js
-    
+        sed -i -e 's|http://127\.0\.0\.1:8000/api|/api|g' dist/index.html dist/assets/*.js
+        # 如有 https 也一并处理（可选）
+        sed -i -e 's|https://127\.0\.0\.1:8000/api|/api|g' dist/index.html dist/assets/*.js
+        
     - name: Create deployment package
       run: |
         mkdir -p deploy
