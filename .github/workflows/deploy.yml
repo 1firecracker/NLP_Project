@@ -167,7 +167,7 @@ jobs:
             
             # 前端静态文件
             location / {
-                root /opt/lightrag-web/frontend/dist;
+                root /opt/lightrag-web/frontend;
                 try_files $uri $uri/ /index.html;
                 index index.html;
             }
