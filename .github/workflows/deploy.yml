@@ -111,11 +111,7 @@ jobs:
           exit 1
         fi
         
-        # 7. 安装前端依赖（如果需要）
-        cd /opt/lightrag-web/frontend
-        if [ ! -d "node_modules" ]; then
-          npm ci --production
-        fi
+        # 7. 前端文件已在 CI/CD 中构建完成，无需安装依赖
         
         # 8. 重启服务
         echo "重启服务..."
