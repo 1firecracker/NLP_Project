@@ -91,8 +91,6 @@ jobs:
         source venv/bin/activate
         pip install --upgrade pip
         pip install -r requirements.txt
-        # 安装 LightRAG 为可编辑包
-        pip install -e /opt/lightrag-web/LightRAG
         
         # 5. 创建必要的目录
         mkdir -p /opt/lightrag-web/backend/uploads
@@ -152,7 +150,8 @@ jobs:
         User=ec2-user
         WorkingDirectory=/opt/lightrag-web/backend
         Environment="PATH=/opt/lightrag-web/backend/venv/bin"
-        ExecStart=/opt/lightrag-web/backend/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+        Environment="PYTHONPATH=/opt/lightrag-web/LightRAG:/opt/lightrag-web/backend"
+        ExecStart=/opt/lightrag-web/backend/venv/bin/python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
         Restart=always
         RestartSec=10
         
