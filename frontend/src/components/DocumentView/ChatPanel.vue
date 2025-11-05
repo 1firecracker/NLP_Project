@@ -18,7 +18,7 @@
         <!-- AI 回复 -->
         <div v-else class="message assistant-message">
           <div class="message-content">
-            <div class="message-text" v-html="formatMarkdown(message.content)"></div>
+            <div class="message-text" v-html="formatMessageWithWarning(message.content)"></div>
             <div class="message-time">{{ formatTime(message.timestamp) }}</div>
           </div>
         </div>
@@ -28,6 +28,8 @@
       <div v-if="isStreaming" class="message assistant-message">
         <div class="message-content">
           <div class="message-text">
+            <span v-if="currentStreamWarning" class="warning-text" v-html="formatMarkdown(currentStreamWarning)"></span>
+            <span v-if="currentStreamWarning && currentStreamContent" v-html="formatMarkdown('\n\n')"></span>
             <span v-html="formatMarkdown(currentStreamContent)"></span>
             <span class="streaming-cursor">|</span>
           </div>
@@ -93,6 +95,7 @@ const inputText = ref('')
 const selectedMode = ref('mix')
 const isStreaming = ref(false)
 const currentStreamContent = ref('')
+const currentStreamWarning = ref('')
 
 // 消息列表（从 chatStore 获取）
 const messages = computed(() => {
@@ -149,28 +152,44 @@ const handleSend = async () => {
   // 开始流式查询
   isStreaming.value = true
   currentStreamContent.value = ''
+  currentStreamWarning.value = ''
   
   try {
     await chatStore.queryStream(convStore.currentConversationId, query, selectedMode.value, (chunk) => {
-      currentStreamContent.value += chunk
+      // 检查是否是警告消息
+      if (typeof chunk === 'object' && chunk.type === 'warning') {
+        currentStreamWarning.value = chunk.content
+      } else if (typeof chunk === 'string') {
+        // 普通响应内容
+        currentStreamContent.value += chunk
+      }
       nextTick(() => {
         scrollToBottom()
       })
     })
     
-    // 流式结束，保存完整回复
+    // 流式结束，保存完整回复（包含警告提示）
+    let fullContent = ''
+    if (currentStreamWarning.value) {
+      fullContent = currentStreamWarning.value + '\n\n'
+    }
     if (currentStreamContent.value) {
+      fullContent += currentStreamContent.value
+    }
+    
+    if (fullContent) {
       chatStore.addMessage(convStore.currentConversationId, {
         role: 'assistant',
-        content: currentStreamContent.value,
+        content: fullContent,
         timestamp: Date.now()
       })
       
       // 保存到后端
-      await chatStore.saveMessage(convStore.currentConversationId, query, currentStreamContent.value)
+      await chatStore.saveMessage(convStore.currentConversationId, query, fullContent)
     }
     
     currentStreamContent.value = ''
+    currentStreamWarning.value = ''
   } catch (error) {
     console.error('查询失败:', error)
     ElMessage.error('查询失败，请重试')
@@ -220,6 +239,29 @@ const formatMarkdown = (text) => {
   html = html.replace(/`([^`]+)`/g, '<code>$1</code>')
   
   // 换行
+  html = html.replace(/\n/g, '<br>')
+  
+  return html
+}
+
+// 格式化消息，识别警告提示并应用斜体样式
+const formatMessageWithWarning = (text) => {
+  if (!text) return ''
+  
+  // 先转义 HTML
+  let html = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+  
+  // 处理警告提示（以 ⚠️ 开头，到第一个换行或文本结束）
+  const warningPattern = /(⚠️[^：:]*[：:][^\n]*)/
+  html = html.replace(warningPattern, '<span class="warning-text">$1</span>')
+  
+  // 处理其他 Markdown 格式
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+  html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>')
   html = html.replace(/\n/g, '<br>')
   
   return html
@@ -301,6 +343,11 @@ const formatMarkdown = (text) => {
   border-radius: 4px;
   overflow-x: auto;
   margin: 8px 0;
+}
+
+.warning-text {
+  font-style: italic;
+  color: #909399;
 }
 
 .message-time {

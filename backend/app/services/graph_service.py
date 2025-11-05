@@ -11,6 +11,8 @@ class GraphService:
     def __init__(self):
         self.lightrag_service = LightRAGService()
         self.document_service = DocumentService()
+        from app.services.conversation_service import ConversationService
+        self.conversation_service = ConversationService()
     
     def _parse_file_path_to_doc_info(self, file_path: str, conversation_id: str) -> Optional[Dict[str, Any]]:
         """解析 file_path 到文档信息
@@ -186,6 +188,129 @@ class GraphService:
                 return entity
         
         return None
+    
+    def check_has_documents_fast(self, conversation_id: str) -> bool:
+        """快速检查对话是否有文档（无需初始化 LightRAG）
+        
+        通过检查对话元数据中的 file_count 或文档状态文件来判断。
+        这是一个轻量级的检查，用于在查询前快速判断是否需要初始化 LightRAG。
+        
+        Args:
+            conversation_id: 对话ID
+            
+        Returns:
+            True 表示有文档，False 表示没有文档
+        """
+        try:
+            # 方式1：检查对话元数据中的 file_count（最快）
+            conversation = self.conversation_service.get_conversation(conversation_id)
+            if conversation:
+                file_count = conversation.get("file_count", 0)
+                if file_count > 0:
+                    return True
+            
+            # 方式2：检查文档状态文件（更准确，但稍慢）
+            status = self.document_service._load_status(conversation_id)
+            documents = status.get("documents", {})
+            if documents:
+                # 检查是否有已处理的文档
+                for doc_id, doc_data in documents.items():
+                    doc_status = doc_data.get("status", "")
+                    # 如果文档状态是 completed 或 processing，认为有文档
+                    if doc_status in ["completed", "processing"]:
+                        return True
+            
+            # 都没有，返回 False
+            return False
+            
+        except Exception:
+            # 检查出错时，保守起见返回 True（假设有文档，进入正常流程）
+            return True
+    
+    async def check_knowledge_graph_empty(self, conversation_id: str) -> tuple[bool, Optional[str]]:
+        """检测知识图谱是否为空
+        
+        Args:
+            conversation_id: 对话ID
+            
+        Returns:
+            (is_empty, error_message): 
+            - is_empty: True 表示知识图谱为空（实体=0 且 关系=0 且 文档块=0）
+            - error_message: 如果检测过程中出错，返回错误信息；否则为 None
+        """
+        try:
+            lightrag = await self.lightrag_service.get_lightrag_for_conversation(conversation_id)
+            
+            # 检查实体数量
+            entities = await lightrag.chunk_entity_relation_graph.get_all_nodes()
+            entity_count = len(entities) if entities else 0
+            
+            # 检查关系数量
+            relations = await lightrag.chunk_entity_relation_graph.get_all_edges()
+            relation_count = len(relations) if relations else 0
+            
+            # 检查文档块数量（通过检查 chunks_vdb 或 text_chunks）
+            # 注意：chunks_vdb 可能没有直接的 count 方法，需要尝试其他方式
+            chunk_count = 0
+            try:
+                # 尝试通过查询一个空查询来获取总数（如果 API 支持）
+                # 或者通过检查 text_chunks 的键数量
+                # 这里使用一个简单的检查：尝试获取一些 chunks
+                # 由于 LightRAG 的存储结构，我们可能需要通过其他方式检查
+                # 暂时先检查实体和关系，如果都为空，认为可能没有文档块
+                pass
+            except Exception:
+                # 如果无法检查文档块数量，仅基于实体和关系判断
+                pass
+            
+            # 判定标准：实体=0 且 关系=0 才判定为空
+            # 注意：文档块数量检查可能较复杂，暂时主要依赖实体和关系
+            is_empty = (entity_count == 0 and relation_count == 0)
+            
+            return is_empty, None
+            
+        except Exception as e:
+            # 检测过程中出错，返回错误信息
+            return False, f"检测知识图谱状态时出错: {str(e)}"
+    
+    async def check_query_result_empty(self, query_result: Dict[str, Any], kg_empty_before: bool) -> tuple[bool, bool]:
+        """检查查询结果是否为空
+        
+        Args:
+            query_result: aquery_llm 返回的结果字典
+            kg_empty_before: 查询前知识图谱是否为空
+            
+        Returns:
+            (is_empty, is_no_content):
+            - is_empty: True 表示查询结果为空（实体=0 且 关系=0 且 文档块=0）
+            - is_no_content: True 表示查询未匹配到相关内容（查询前有知识图谱，但查询后无结果）
+        """
+        try:
+            # 如果查询状态为失败，直接判定为空
+            if query_result.get("status") == "failure":
+                return True, False
+            
+            data = query_result.get("data", {})
+            
+            entities = data.get("entities", [])
+            relationships = data.get("relationships", [])
+            chunks = data.get("chunks", [])
+            
+            entity_count = len(entities) if entities else 0
+            relation_count = len(relationships) if relationships else 0
+            chunk_count = len(chunks) if chunks else 0
+            
+            # 全部为空：判定为查询结果为空
+            is_empty = (entity_count == 0 and relation_count == 0 and chunk_count == 0)
+            
+            # 查询未匹配到相关内容：查询前有知识图谱，但查询后无结果
+            is_no_content = (not kg_empty_before and is_empty)
+            
+            return is_empty, is_no_content
+            
+        except Exception:
+            # 解析失败，假设不为空
+            return False, False
     
     async def query(self, conversation_id: str, query: str, mode: str = "mix") -> str:
         """在对话的知识图谱中查询

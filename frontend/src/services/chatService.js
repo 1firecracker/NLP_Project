@@ -54,6 +54,9 @@ class ChatService {
             if (parsed.response) {
               // 调用回调函数处理数据块
               onChunk(parsed.response)
+            } else if (parsed.warning) {
+              // 处理警告消息（需要特殊样式）
+              onChunk({ type: 'warning', content: parsed.warning })
             } else if (parsed.error) {
               throw new Error(parsed.error)
             }
@@ -71,6 +74,8 @@ class ChatService {
         const parsed = JSON.parse(buffer)
         if (parsed.response) {
           onChunk(parsed.response)
+        } else if (parsed.warning) {
+          onChunk({ type: 'warning', content: parsed.warning })
         }
       } catch (error) {
         console.error('解析最终数据块失败:', buffer, error)

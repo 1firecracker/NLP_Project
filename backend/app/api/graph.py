@@ -178,18 +178,20 @@ async def query_knowledge_graph_stream(conversation_id: str, request: QueryReque
     - global: 全局查询
     - mix: 混合查询（默认）
     
+    当知识图谱为空或查询未匹配到相关内容时，会自动降级到 LLM 直接回答，并显示提示。
+    
     Args:
         conversation_id: 对话ID
         request: 查询请求（包含 query 和 mode）
         
     Returns:
         StreamingResponse: NDJSON 格式的流式响应
-        - 每行一个 JSON 对象：{"response": "chunk"}
+        - 每行一个 JSON 对象：{"response": "chunk"} 或 {"warning": "message"}
         - 错误时：{"error": "error message"}
     """
     service = GraphService()
     
-    # 验证查询模式
+    # 验证查询模式（排除 bypass 模式，因为 bypass 不检索）
     valid_modes = ["naive", "local", "global", "mix"]
     if request.mode not in valid_modes:
         raise HTTPException(
@@ -197,18 +199,132 @@ async def query_knowledge_graph_stream(conversation_id: str, request: QueryReque
             detail=f"无效的查询模式: {request.mode}，支持的模式: {', '.join(valid_modes)}"
         )
     
+    # 第一层：快速检查是否有文档（无需初始化 LightRAG）
+    if not service.check_has_documents_fast(conversation_id):
+        # 快速路径：直接使用 bypass 模式，无需初始化 LightRAG 和检查知识图谱
+        async def fast_bypass_stream():
+            try:
+                # 发送警告提示
+                warning_message = "[未上传文档 ,直接给出回答]"
+                yield f"{json.dumps({'warning': warning_message})}\n"
+                # 发送换行
+                newline_text = '\n\n'
+                yield f"{json.dumps({'response': newline_text})}\n"
+                
+                # 初始化 LightRAG（仅用于 bypass 模式，无需检查知识图谱）
+                lightrag = await service.lightrag_service.get_lightrag_for_conversation(conversation_id)
+                from lightrag import QueryParam
+                
+                # 使用 bypass 模式查询
+                bypass_param = QueryParam(mode="bypass", stream=True)
+                bypass_result = await lightrag.aquery_llm(request.query, param=bypass_param)
+                llm_response = bypass_result.get("llm_response", {})
+                
+                # 流式发送响应
+                if llm_response.get("is_streaming"):
+                    response_stream = llm_response.get("response_iterator")
+                    if response_stream:
+                        try:
+                            async for chunk in response_stream:
+                                if chunk:
+                                    yield f"{json.dumps({'response': chunk})}\n"
+                        except Exception as e:
+                            yield f"{json.dumps({'error': str(e)})}\n"
+                    else:
+                        content = llm_response.get("content", "")
+                        if content:
+                            yield f"{json.dumps({'response': content})}\n"
+                else:
+                    content = llm_response.get("content", "")
+                    if content:
+                        yield f"{json.dumps({'response': content})}\n"
+                    else:
+                        yield f"{json.dumps({'error': 'No response generated'})}\n"
+            except Exception as e:
+                yield f"{json.dumps({'error': str(e)})}\n"
+        
+        return StreamingResponse(
+            fast_bypass_stream(),
+            media_type="application/x-ndjson",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no"
+            }
+        )
+    
+    # 第二层：有文档，进入正常流程（包含知识图谱检查）
     async def stream_generator():
         try:
-            # 调用流式查询
+            # 步骤1：查询前检测知识图谱是否为空
+            kg_empty_before, error_msg = await service.check_knowledge_graph_empty(conversation_id)
+            
+            if error_msg:
+                # 检测出错，显示错误信息
+                yield f"{json.dumps({'error': error_msg})}\n"
+                return
+            
             lightrag = await service.lightrag_service.get_lightrag_for_conversation(conversation_id)
             from lightrag import QueryParam
             
-            # 使用 aquery_llm 获取流式响应
-            param = QueryParam(mode=request.mode, stream=True)
-            result = await lightrag.aquery_llm(request.query, param=param)
+            # 如果查询前知识图谱为空，直接使用 bypass 模式，跳过查询
+            if kg_empty_before:
+                # 直接发送警告提示并使用 bypass 模式
+                warning_message = "⚠️ 未检索到相关文档，将基于通用知识回答："
+                yield f"{json.dumps({'warning': warning_message})}\n"
+                # 发送换行（不能在 f-string 表达式中使用反斜杠）
+                newline_text = '\n\n'
+                yield f"{json.dumps({'response': newline_text})}\n"
+                
+                # 直接使用 bypass 模式查询
+                bypass_param = QueryParam(mode="bypass", stream=True)
+                bypass_result = await lightrag.aquery_llm(request.query, param=bypass_param)
+                llm_response = bypass_result.get("llm_response", {})
+            else:
+                # 步骤2：执行查询（知识图谱不为空）
+                param = QueryParam(mode=request.mode, stream=True)
+                result = await lightrag.aquery_llm(request.query, param=param)
+                
+                # 步骤3：查询后验证结果
+                result_empty, no_content = await service.check_query_result_empty(result, kg_empty_before)
+                
+                # 判断是否需要降级到 bypass 模式
+                need_fallback = False
+                warning_message = None
+                
+                if result_empty:
+                    if no_content:
+                        # 有知识图谱但查询未匹配到相关内容
+                        need_fallback = True
+                        warning_message = "⚠️ 未检索到相关内容，将基于通用知识回答："
+                    else:
+                        # 其他情况（查询失败等）
+                        need_fallback = True
+                        warning_message = "⚠️ 未检索到相关文档，将基于通用知识回答："
+                elif result.get("status") == "failure":
+                    # 查询失败
+                    need_fallback = True
+                    warning_message = "⚠️ 未检索到相关文档，将基于通用知识回答："
+                
+                # 如果需要降级，使用 bypass 模式重新查询
+                if need_fallback:
+                    # 先发送警告提示
+                    if warning_message:
+                        yield f"{json.dumps({'warning': warning_message})}\n"
+                        # 发送换行（不能在 f-string 表达式中使用反斜杠）
+                        newline_text = '\n\n'
+                        yield f"{json.dumps({'response': newline_text})}\n"
+                    
+                    # 使用 bypass 模式重新查询
+                    bypass_param = QueryParam(mode="bypass", stream=True)
+                    bypass_result = await lightrag.aquery_llm(request.query, param=bypass_param)
+                    
+                    llm_response = bypass_result.get("llm_response", {})
+                else:
+                    # 正常使用查询结果
+                    llm_response = result.get("llm_response", {})
             
-            llm_response = result.get("llm_response", {})
-            
+            # 步骤4：流式发送响应
             if llm_response.get("is_streaming"):
                 # 流式模式：逐块发送响应
                 response_stream = llm_response.get("response_iterator")
