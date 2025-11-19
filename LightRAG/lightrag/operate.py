@@ -2066,6 +2066,16 @@ async def extract_entities(
         # Get file path from chunk data or use default
         file_path = chunk_dp.get("file_path", "unknown_source")
 
+        def _log_phase_metrics(
+            phase_name: str, duration: float, chunk_id: str, **extra_fields: Any
+        ) -> None:
+            """统一的阶段耗时日志，方便后续统计"""
+            extras = " ".join(f"{key}={value}" for key, value in extra_fields.items())
+            logger.info(
+                f"[实体提取][性能] phase={phase_name} chunk={chunk_id} "
+                f"duration={duration:.2f}s{f' {extras}' if extras else ''}"
+            )
+
         # 记录开始处理
         logger.info(f"[实体提取] 开始处理 Chunk {processed_chunks + 1}/{total_chunks}: {chunk_key}")
         logger.info(f"[实体提取] Chunk 详情: tokens={chunk_tokens}, content_length={content_length}, file_path={file_path}")
@@ -2092,6 +2102,15 @@ async def extract_entities(
         system_prompt_len = len(entity_extraction_system_prompt)
         user_prompt_len = len(entity_extraction_user_prompt)
         logger.info(f"[实体提取] Prompt 长度: system={system_prompt_len}, user={user_prompt_len}, total={system_prompt_len + user_prompt_len}")
+        _log_phase_metrics(
+            "prompt_prepare",
+            prompt_prep_time,
+            chunk_key,
+            tokens=chunk_tokens,
+            content_length=content_length,
+            system_prompt_len=system_prompt_len,
+            user_prompt_len=user_prompt_len,
+        )
 
         # 第一次 LLM 调用（初始提取）
         llm_call_start_time = time.time()
@@ -2111,6 +2130,13 @@ async def extract_entities(
             logger.info(f"[实体提取] 第一次 LLM 调用完成，耗时: {llm_call_time:.2f}秒")
             logger.info(f"[实体提取] LLM 响应长度: {len(final_result)} 字符")
             logger.info(f"[实体提取] LLM 响应预览 (前300字符): {final_result[:300]}...")
+            _log_phase_metrics(
+                "initial_llm_call",
+                llm_call_time,
+                chunk_key,
+                response_length=len(final_result),
+                response_timestamp=timestamp,
+            )
         except Exception as e:
             llm_call_time = time.time() - llm_call_start_time
             logger.error(f"[实体提取] 第一次 LLM 调用失败，耗时: {llm_call_time:.2f}秒，错误: {str(e)}")
@@ -2138,6 +2164,13 @@ async def extract_entities(
         initial_relations_count = len(maybe_edges)
         logger.info(f"[实体提取] 初始提取结果解析完成，耗时: {parse_time:.2f}秒")
         logger.info(f"[实体提取] 初始提取统计: 实体={initial_entities_count}, 关系={initial_relations_count}")
+        _log_phase_metrics(
+            "initial_parse",
+            parse_time,
+            chunk_key,
+            entities=initial_entities_count,
+            relations=initial_relations_count,
+        )
 
         # Process additional gleaning results only 1 time when entity_extract_max_gleaning is greater than zero.
         if entity_extract_max_gleaning > 0:
@@ -2158,6 +2191,14 @@ async def extract_entities(
                 glean_time = time.time() - glean_start_time
                 logger.info(f"[实体提取] 第二次 LLM 调用 (Gleaning) 完成，耗时: {glean_time:.2f}秒")
                 logger.info(f"[实体提取] Gleaning 响应长度: {len(glean_result)} 字符")
+                _log_phase_metrics(
+                    "glean_llm_call",
+                    glean_time,
+                    chunk_key,
+                    response_length=len(glean_result),
+                    gleaning_rounds=entity_extract_max_gleaning,
+                    response_timestamp=timestamp,
+                )
             except Exception as e:
                 glean_time = time.time() - glean_start_time
                 logger.error(f"[实体提取] 第二次 LLM 调用 (Gleaning) 失败，耗时: {glean_time:.2f}秒，错误: {str(e)}")
@@ -2181,6 +2222,13 @@ async def extract_entities(
             glean_relations_count = len(glean_edges)
             logger.info(f"[实体提取] Gleaning 结果解析完成，耗时: {glean_parse_time:.2f}秒")
             logger.info(f"[实体提取] Gleaning 统计: 实体={glean_entities_count}, 关系={glean_relations_count}")
+            _log_phase_metrics(
+                "glean_parse",
+                glean_parse_time,
+                chunk_key,
+                entities=glean_entities_count,
+                relations=glean_relations_count,
+            )
 
             # Merge results - compare description lengths to choose better version
             for entity_name, glean_entities in glean_nodes.items():

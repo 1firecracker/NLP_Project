@@ -565,6 +565,7 @@ class LightRAG:
         hashing_kv = self.llm_response_cache
 
         # Get timeout from LLM model kwargs for dynamic timeout calculation
+        logger.info(f"[LightRAG] llm_model_max_async={self.llm_model_max_async}")
         self.llm_model_func = priority_limit_async_func_call(
             self.llm_model_max_async,
             llm_timeout=self.default_llm_timeout,

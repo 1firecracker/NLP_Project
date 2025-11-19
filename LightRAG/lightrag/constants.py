@@ -64,7 +64,7 @@ DEFAULT_MAX_FILE_PATH_LENGTH = 32768
 DEFAULT_TEMPERATURE = 1.0
 
 # Async configuration defaults
-DEFAULT_MAX_ASYNC = 4  # Default maximum async operations
+DEFAULT_MAX_ASYNC = 16  # Default maximum async operations
 DEFAULT_MAX_PARALLEL_INSERT = 2  # Default maximum parallel insert operations
 
 # Embedding configuration defaults
