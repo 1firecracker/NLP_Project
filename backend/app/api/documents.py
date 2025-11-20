@@ -251,9 +251,23 @@ async def get_document_slides(conversation_id: str, file_id: str):
             # PDF返回的是 pages，需要转换为 slides 格式
             slides_data = []
             for page in parsed_data.get("pages", []):
-                # 跳过文本位置提取
-                text_positions = []
-                page_dimensions = None
+                try:
+                    # 提取文本位置信息
+                    text_positions_result = parser.extract_text_positions(document["file_path"], page["page_number"])
+                    text_positions = text_positions_result.get("text_items", [])
+                    page_dimensions = text_positions_result.get("dimensions")  # DocumentParser已统一为dimensions
+                    
+                    # 调试日志
+                    if len(text_positions) == 0:
+                        print(f"Warning: PDF page {page['page_number']} has no text positions extracted")
+                    else:
+                        print(f"Extracted {len(text_positions)} text positions for PDF page {page['page_number']}")
+                        if page_dimensions:
+                            print(f"Page dimensions: {page_dimensions['width_inches']}\" × {page_dimensions['height_inches']}\"")
+                except Exception as e:
+                    print(f"Error extracting text positions for PDF page {page['page_number']}: {e}")
+                    text_positions = []  # 设置空数组作为默认值
+                    page_dimensions = None
                 
                 slide_data = {
                     "slide_number": page["page_number"],
@@ -275,9 +289,28 @@ async def get_document_slides(conversation_id: str, file_id: str):
             # PPTX: 为每个幻灯片提取文本位置信息
             slides_data = []
             for slide in parsed_data.get("slides", []):
-                # 跳过文本位置提取
-                slide["text_positions"] = []
-                slide["slide_dimensions"] = None
+                slide_number = slide.get("slide_number", 0)
+                try:
+                    # 提取文本位置信息
+                    text_positions_result = parser.extract_text_positions(document["file_path"], slide_number)
+                    text_positions = text_positions_result.get("text_items", [])
+                    slide_dimensions = text_positions_result.get("dimensions")  # DocumentParser已统一为dimensions
+                    
+                    # 添加到slide数据中
+                    slide["text_positions"] = text_positions
+                    slide["slide_dimensions"] = slide_dimensions  # 添加尺寸信息
+                    
+                    # 调试日志
+                    if len(text_positions) == 0:
+                        print(f"Warning: Slide {slide_number} has no text positions extracted")
+                    else:
+                        print(f"Extracted {len(text_positions)} text positions for slide {slide_number}")
+                        if slide_dimensions:
+                            print(f"Slide dimensions: {slide_dimensions['width_inches']}\" × {slide_dimensions['height_inches']}\"")
+                except Exception as e:
+                    print(f"Error extracting text positions for slide {slide_number}: {e}")
+                    slide["text_positions"] = []  # 设置空数组作为默认值
+                    slide["slide_dimensions"] = None
             
             return SlideListResponse(
                 filename=parsed_data["filename"],
@@ -326,9 +359,15 @@ async def get_document_slide(conversation_id: str, file_id: str, slide_id: int):
         # 解析文档
         parsed_data = parser.parse(document["file_path"])
         
-        # 跳过文本位置提取
-        text_positions = []
-        slide_dimensions = None
+        # 提取文本位置信息（用于Canvas叠加）
+        try:
+            text_positions_result = parser.extract_text_positions(document["file_path"], slide_id)
+            text_positions = text_positions_result.get("text_items", [])
+            slide_dimensions = text_positions_result.get("dimensions")  # DocumentParser已统一为dimensions
+        except Exception as e:
+            print(f"Error extracting text positions for {file_ext} {slide_id}: {e}")
+            text_positions = []
+            slide_dimensions = None
         
         if file_ext == "pdf":
             # PDF: 从 pages 中查找

@@ -100,6 +100,19 @@ class ExerciseService {
       `/api/conversations/${conversationId}/exercises/samples/${sampleId}`
     )
   }
+
+
+  /**
+   * 获取当前会话生成的题目列表
+   * @param {string} conversationId - 对话ID
+   * @returns {Promise<Object>} { conversation_id, question_count, questions }
+   */
+  async getGeneratedQuestions(conversationId) {
+    const response = await api.get(
+      `/api/conversations/${conversationId}/exercises/generated_questions`
+    )
+    return response
+  }
 }
 
 export default new ExerciseService()

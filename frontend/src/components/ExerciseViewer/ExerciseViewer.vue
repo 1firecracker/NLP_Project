@@ -105,13 +105,13 @@
           </div>
         </template>
         
-        <div class="result-content">
+        <div class="result-content scroll-area">
           <el-empty
             v-if="!generating && !generationResult"
             description="暂无生成结果，请先上传样本试题并点击开始生成"
             :image-size="120"
           />
-          
+
           <div v-else-if="generating" class="generating-status">
             <el-skeleton :rows="5" animated />
             <el-alert
@@ -121,18 +121,43 @@
               style="margin-top: 16px;"
             />
           </div>
-          
+
           <div v-else-if="generationResult" class="generation-result">
             <!-- 生成结果展示 -->
             <el-alert
-              :title="`成功生成 ${generationResult.questions?.length || 0} 道试题`"
+              :title="`成功生成 ${generatedQuestions.length || 0} 道试题`"
               type="success"
               :closable="false"
               style="margin-bottom: 16px;"
             />
-            <!-- TODO: 展示生成的试题列表 -->
-            <div class="questions-list">
-              <p>试题列表展示（待实现）</p>
+            <!-- 展示生成的试题列表 -->
+            <div class="questions-list" v-if="generatedQuestions && generatedQuestions.length">
+              <h3 style="margin-bottom: 12px;">生成的试题列表：</h3>
+
+              <div
+                v-for="q in generatedQuestions"
+                :key="q.id"
+                class="question-item"
+                style="padding: 16px; border: 1px solid #ddd; border-radius: 10px; margin-bottom: 16px;"
+              >
+                <h4>{{ q.id }}. {{ q.stem }}</h4>
+
+                <!-- 选择题选项 -->
+                <ul v-if="q.options && q.options.length > 0" style="margin-top: 8px;">
+                  <li v-for="(opt, idx) in q.options" :key="idx">{{ opt }}</li>
+                </ul>
+
+                <!-- 难度 & 题型 & 知识点 -->
+                <div style="margin-top: 12px; font-size: 13px; color: #666;">
+                  <span><strong>题型：</strong>{{ q.question_type }}</span> |
+                  <span><strong>难度：</strong>{{ q.difficulty }}</span> |
+                  <span><strong>知识点：</strong>{{ q.knowledge_points?.join(', ') }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="questions-list" v-else>
+              <p>暂无试题生成，请先点击上方按钮生成。</p>
             </div>
           </div>
         </div>
@@ -228,6 +253,11 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown, UploadFilled, MagicStick, DocumentCopy } from '@element-plus/icons-vue'
 import { useConversationStore } from '../../stores/conversationStore'
 import exerciseService from '../../services/exerciseService'
+import { useRoute } from 'vue-router'
+import { api } from '../../services/api'      // ⭐ 新增这一行，代替 axios
+
+const route = useRoute()
+const conversation_id = computed(() => route.params.conversation_id)
 
 const convStore = useConversationStore()
 
@@ -239,6 +269,8 @@ const generating = ref(false)
 const generationStatus = ref('')
 const generationResult = ref(null)
 const uploadRef = ref(null)
+const generatedQuestions = ref([])   // 用来存放后端返回的题目列表
+
 
 // 方法
 const toggleSampleSection = () => {
@@ -431,21 +463,59 @@ const startGeneration = async () => {
     ElMessage.warning('请先上传样本试题')
     return
   }
-  
+
   generating.value = true
   generationStatus.value = '正在启动生成任务...'
   generationResult.value = null
-  
+  generatedQuestions.value = []
+
   try {
-    // TODO: 调用生成接口
-    ElMessage.info('生成功能待实现（需要AgentService接口）')
-    generationStatus.value = '生成功能待实现'
+    const convId = conversation_id.value || 'default'
+
+    // 1️⃣ 调用“生成题目”
+    const res = await api.post(
+      `/api/conversations/${convId}/exercises/generate`
+    )
+
+    // ⭐⭐ 修正点 #1：不要再用 res.data
+    const data = res
+    console.log("🔥 /generate 返回:", data)
+
+    // ⭐⭐ 修正点 #2（可选，但建议）
+    if (!data || typeof data.question_count === "undefined") {
+      throw new Error("后端未返回 question_count")
+    }
+
+    generationResult.value = data
+    generationStatus.value = `成功生成 ${data.question_count} 道试题`
+
+    // 2️⃣ 获取题目列表
+    try {
+      const qRes = await exerciseService.getGeneratedQuestions(convId)
+      console.log("📌 getGeneratedQuestions 返回:", qRes)
+      generatedQuestions.value = qRes.questions || []
+    } catch (err) {
+      console.error('读取生成题目列表失败：', err)
+      ElMessage.warning('题目已经生成，但在读取题目列表时出错')
+    }
+
   } catch (error) {
-    ElMessage.error('启动失败: ' + (error.message || '未知错误'))
+    console.error('生成失败：', error)
+    const msg =
+      error.response?.data?.detail ||
+      error.message ||
+      '未知错误'
+    ElMessage.error('生成试题失败，请稍后重试：' + msg)
+    generationStatus.value = '生成失败'
   } finally {
     generating.value = false
   }
 }
+
+
+
+
+
 
 const formatFileSize = (bytes) => {
   if (bytes < 1024) return bytes + ' B'
@@ -626,5 +696,18 @@ onMounted(() => {
   padding: 20px;
   text-align: center;
 }
+
+.scroll-area {
+  max-height: 70vh;     /* 可见区域 70% 屏幕高度 */
+  overflow-y: auto;     /* 开启纵向滚动条 */
+  padding-right: 10px;  /* 防止滚动条遮挡内容 */
+}
+
+.question-item {
+  word-wrap: break-word; /* 自动换行，避免题干太长撑爆布局 */
+  white-space: normal;
+}
 </style>
+
+
 

@@ -14,6 +14,11 @@ const router = createRouter({
       path: '/test',
       name: 'home',
       component: HomeView
+    },
+    {
+      path: '/conversations/:conversation_id/exercises',
+      name: 'exercises',
+      component: () => import('../components/ExerciseViewer/ExerciseViewer.vue')
     }
   ]
 })

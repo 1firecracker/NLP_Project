@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     llm_model: str = "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B"
     llm_binding_api_key: str = ""  # 必需：从环境变量读取，请配置 LLM_BINDING_API_KEY
     llm_binding_host: str = "https://api.siliconflow.cn/v1"
-    max_async: int = 16  # 减小并发数，降低超时风险
+    max_async: int = 2  # 减小并发数，降低超时风险
     timeout: int = 400  # 增加超时时间，避免复杂内容处理超时（从150增加到400）
     
     # Embedding 配置
@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     # 对话和元数据存储配置
     conversations_metadata_dir: str = str(BASE_DIR / "uploads/metadata")
     conversations_dir: str = str(BASE_DIR / "uploads/conversations")
+    
+    # 数据存储目录配置（用于批改记录、学习建议等）
+    data_dir: str = str(BASE_DIR / "data")
     
     # 图片渲染配置
     image_cache_dir: str = str(BASE_DIR / "uploads/image_cache")

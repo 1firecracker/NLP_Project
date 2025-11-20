@@ -4,8 +4,8 @@ from app.config import settings
 from app.api import conversations, documents, graph, images, exercises
 
 app = FastAPI(
-    title="Agent for Exam",
-    description="基于 LightRAG 的智能考试助手系统",
+    title="LightRAG Web Application",
+    description="基于 LightRAG 的 Web 应用程序",
     version="1.0.0"
 )
 
@@ -30,7 +30,7 @@ app.include_router(exercises.router)
 async def root():
     """根路径"""
     return {
-        "message": "Agent for Exam API",
+        "message": "LightRAG Web Application API",
         "version": "1.0.0",
         "status": "running"
     }

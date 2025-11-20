@@ -216,47 +216,6 @@ const initCytoscape = () => {
   // 转换数据（应用过滤）
   const { nodes, edges } = convertToCytoscapeData(entities, relations, props.filterOptions)
   
-  // 定义颜色映射（支持 LightRAG 默认类型和常见类型）
-  const colorMap = {
-    // LightRAG 默认类型
-    'chapterconcept': '#409EFF',  // 章节概念 - 蓝色
-    'definition': '#67C23A',      // 定义 - 绿色
-    'method': '#E6A23C',          // 方法 - 橙色
-    'application': '#F56C6C',     // 应用 - 红色
-    'example': '#909399',          // 例子 - 灰色
-    // 常见实体类型
-    'concept': '#409EFF',         // 概念 - 蓝色
-    'person': '#67C23A',           // 人物 - 绿色
-    'location': '#E6A23C',         // 地点 - 橙色
-    'organization': '#F56C6C',     // 组织 - 红色
-    'time': '#9C27B0',             // 时间 - 紫色
-    'event': '#FF9800',            // 事件 - 深橙色
-    'object': '#00BCD4',           // 物体 - 青色
-    'unknown': '#A0CFFF'           // 未知 - 浅蓝色
-  }
-  
-  // 获取节点颜色的函数（不区分大小写）
-  const getNodeColor = (type) => {
-    if (!type) return colorMap.unknown
-    const lowerType = type.toLowerCase()
-    // 直接匹配
-    if (colorMap[lowerType]) return colorMap[lowerType]
-    // 如果类型包含已知关键词，返回对应颜色
-    if (lowerType.includes('concept')) return colorMap.concept
-    if (lowerType.includes('person') || lowerType.includes('人')) return colorMap.person
-    if (lowerType.includes('location') || lowerType.includes('地点')) return colorMap.location
-    if (lowerType.includes('organization') || lowerType.includes('组织')) return colorMap.organization
-    if (lowerType.includes('time') || lowerType.includes('时间')) return colorMap.time
-    if (lowerType.includes('event') || lowerType.includes('事件')) return colorMap.event
-    // 使用哈希算法生成一致的颜色（对于未知类型）
-    let hash = 0
-    for (let i = 0; i < lowerType.length; i++) {
-      hash = lowerType.charCodeAt(i) + ((hash << 5) - hash)
-    }
-    const hue = hash % 360
-    return `hsl(${hue}, 70%, 50%)`
-  }
-  
   // 创建Cytoscape实例
   cy.value = cytoscape({
     container: cyContainer.value,
@@ -265,48 +224,41 @@ const initCytoscape = () => {
       {
         selector: 'node',
         style: {
-          'background-color': (ele) => getNodeColor(ele.data('type')),
+          'background-color': '#409EFF',
           'label': 'data(label)',
           'text-valign': 'center',
           'text-halign': 'center',
           'color': '#fff',
-          'font-weight': 'bold', // 加粗字体
-          'text-outline-width': 1.5, // 文字描边，增加对比度
-          'text-outline-color': '#333', // 深色描边
-          
-          // 动态计算节点大小：基础50px，随字符数增加
-          'width': (ele) => {
-            const label = ele.data('label') || '';
-            // 略微增加基础大小和增长率，给文字更多空间
-            return Math.min(140, Math.max(60, label.length * 10 + 40));
-          },
-          'height': (ele) => {
-            const label = ele.data('label') || '';
-            return Math.min(140, Math.max(60, label.length * 10 + 40));
-          },
-          
-          // 动态字体大小：根据节点大小调整，但不超过一定范围
-          'font-size': (ele) => {
-            const label = ele.data('label') || '';
-            const size = Math.min(140, Math.max(60, label.length * 10 + 40));
-            // 节点越大字体越大，但有上限 (14px) 和下限 (10px)
-            // 字符越多，相对缩小字体以容纳更多内容
-            const baseSize = size / 5; 
-            return Math.min(14, Math.max(10, baseSize - (label.length * 0.2))); 
-          },
-
-          'shape': 'ellipse',
+          'font-size': '12px',
+          'width': 60,
+          'height': 60,
+          'shape': 'round-rectangle',
           'border-width': 2,
-          'border-color': '#fff',
-          
-          // 文本换行控制：关键配置
-          'text-wrap': 'wrap',
-          // 限制文本宽度为节点宽度的 90%，确保在圆内
-          'text-max-width': (ele) => {
-             const label = ele.data('label') || '';
-             const width = Math.min(140, Math.max(60, label.length * 10 + 40));
-             return width * 0.9;
-          }
+          'border-color': '#fff'
+        }
+      },
+      {
+        selector: 'node[type = "concept"]',
+        style: {
+          'background-color': '#409EFF'
+        }
+      },
+      {
+        selector: 'node[type = "person"]',
+        style: {
+          'background-color': '#67C23A'
+        }
+      },
+      {
+        selector: 'node[type = "location"]',
+        style: {
+          'background-color': '#E6A23C'
+        }
+      },
+      {
+        selector: 'node[type = "organization"]',
+        style: {
+          'background-color': '#F56C6C'
         }
       },
       {
@@ -342,42 +294,13 @@ const initCytoscape = () => {
       }
     ],
     layout: {
-      name: 'cose', // 使用力导向布局 (CoSE: Compound Spring Embedder)
-      animate: true, // 启用动画
-      animationDuration: 1000, // 动画持续时间
-      fit: true, // 自动适应画布
-      padding: 30, // 画布内边距
-      
-      // 布局算法参数微调
-      // 节点斥力 (值越大，节点之间推得越远)
-      nodeRepulsion: function( node ){ return 4096; },
-      
-      // 理想边长 (值越大，边越长)
-      idealEdgeLength: function( edge ){ return 100; },
-      
-      // 边弹性 (值越小，边越容易拉伸)
-      edgeElasticity: function( edge ){ return 32; },
-      
-      // 嵌套因子 (用于复合节点，这里影响不大)
-      nestingFactor: 1.2,
-      
-      // 重力 (将未连接的组件拉向中心)
-      gravity: 1,
-      
-      // 迭代次数 (次数越多，布局越稳定，但耗时越长)
-      numIter: 1000,
-      
-      // 初始温度 (用于冷却计划)
-      initialTemp: 1000,
-      
-      // 冷却因子
-      coolingFactor: 0.99,
-      
-      // 最小温度
-      minTemp: 1.0,
-      
-      // 是否随机初始位置 (避免陷入局部最优)
-      randomize: true
+      name: 'breadthfirst', // 使用内置的广度优先布局（类似力导向效果）
+      animate: true,
+      animationDuration: 1000,
+      fit: true,
+      padding: 30,
+      directed: false,
+      spacingFactor: 1.5
     },
     userPanningEnabled: true,
     userZoomingEnabled: true,
