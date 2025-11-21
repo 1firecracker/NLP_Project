@@ -525,6 +525,29 @@ class ExerciseService:
         candidates.sort(key=lambda x: x[0], reverse=True)
         return candidates[0][1]
 
+
+    def _clear_generated_cache(self, conversation_id: str):
+        """
+        清除指定会话的生成题库缓存（磁盘文件和内存状态）
+        """
+        import os
+        from app.agents.database.question_bank_storage import BASE_DATA_DIR
+        
+        # 清除内存缓存
+        shared_state.reset()
+        
+        # 清除磁盘文件（包括原始题库和所有生成阶段）
+        suffixes = ['', '_generated', '_corrected', '_graded']
+        for suffix in suffixes:
+            cache_id = f"{conversation_id}{suffix}"
+            cache_dir = os.path.join(BASE_DATA_DIR, cache_id)
+            if os.path.exists(cache_dir):
+                try:
+                    shutil.rmtree(cache_dir)
+                    print(f"[🗑️ 已清除缓存] {cache_dir}")
+                except Exception as e:
+                    print(f"[⚠️ 清除缓存失败] {cache_dir}: {e}")
+
     def generate_questions(self, conversation_id: str, up_to: str = "F") -> Dict:
         """
         基于当前/最近一次已上传并解析完成的样本试题，
@@ -534,21 +557,34 @@ class ExerciseService:
         - 不再强依赖前端传入的 conversation_id；
         - 如果当前 conversation 下没有样本，会自动在所有会话中寻找最近的一个。
         """
-        # 先尝试用“当前” conversation_id
+        # 只使用当前 conversation_id，不再自动查找其他会话
         effective_id = conversation_id
         samples = self.list_samples(conversation_id)
 
-        # 1) 如果当前会话根本没有样本，或者没有任何 completed 的样本，就自动兜底
-        if (not samples) or (not any(s.get("status") == "completed" for s in samples)):
-            auto_conv = self._find_any_completed_conversation()
-            if auto_conv is None:
-                # 真·一个样本都没解析成功过
-                raise ValueError("找不到任何已上传且解析完成的样本试卷，请先在前端上传并等待解析完成。")
-            effective_id = auto_conv
-            samples = self.list_samples(effective_id)
+        # 检查当前会话是否有已完成的样本
+        if not samples:
+            raise ValueError(
+                f"当前会话 [{conversation_id}] 未找到任何样本试卷。\n"
+                "请先在【样本试卷】模块上传 PDF/DOCX/TXT 文件，并等待解析完成后再生成试题。"
+            )
+        
+        completed_samples = [s for s in samples if s.get("status") == "completed"]
+        if not completed_samples:
+            pending_count = len([s for s in samples if s.get("status") == "pending"])
+            if pending_count > 0:
+                raise ValueError(
+                    f"当前会话有 {pending_count} 个样本正在解析中，请稍等片刻后再生成试题。"
+                )
+            else:
+                raise ValueError(
+                    f"当前会话的样本解析失败。请重新上传样本试卷或检查文件格式。"
+                )
 
-        # 打个日志（方便以后你调试）
-        print(f"[AgentPipeline] 使用会话 {effective_id} 作为出题输入（找到 {len(samples)} 个样本）")
+        # 清除旧缓存（确保生成新题目）
+        print(f"[🔄 清除旧缓存] 会话 {effective_id}")
+        self._clear_generated_cache(effective_id)
+        
+        print(f"[AgentPipeline] 使用会话 {effective_id} 生成新题目（找到 {len(completed_samples)} 个已完成样本）")
 
         # 2) 启动 Agent 链
         #    Agent A 会在 run_agent_a 中使用 "__AUTO__" 自动扫描 backend/uploads/exercises 下的 text.txt
@@ -581,21 +617,18 @@ class ExerciseService:
         对已经生成的试题（conversation_id_generated）运行 Agent G 批改器。
         返回 quality_report。
         """
-        # 优先尝试传入的会话，如果不存在则尝试自动查找
+        # 严格使用当前会话，不再自动查找其他会话
         generated_id = f"{conversation_id}_generated"
         qb = load_question_bank(generated_id)
+        
         if qb is None or not getattr(qb, "questions", None):
-            # 尝试寻找最近一个生成过的会话
-            auto_conv = self._find_any_completed_conversation()
-            if auto_conv:
-                generated_id = f"{auto_conv}_generated"
-                qb = load_question_bank(generated_id)
-
-        if qb is None or not getattr(qb, "questions", None):
-            raise ValueError("未找到可批改的生成题库，请先运行生成流程。")
+            raise ValueError(
+                f"当前会话 [{conversation_id}] 未找到生成的题库。\n"
+                "请先在【试题生成】模块点击'生成试题'按钮，等待生成完成后再批改。"
+            )
 
         # 调用 Agent G（同步包装）
-        report = run_agent_g(generated_id.replace("_generated", ""))
+        report = run_agent_g(conversation_id)
         return report
 
     def grade_submission(self, conversation_id: str, student_name: str, answers_map: dict):

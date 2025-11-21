@@ -524,24 +524,50 @@ async def submit_student_answers(
                     detail=f"不支持的文件格式: {file_ext}，仅支持 PDF、DOCX、TXT"
                 )
 
-            # 解析答案格式（支持 Q001: 答案 或 1. 答案）
-            pattern_q = re.compile(r"(Q\d{1,4})\s*[:：\.\)]\s*(.+)")
+            # 解析答案格式（支持多种格式）
+            # 格式1: Q001: 答案 或 Q001. 答案 或 Q001) 答案
+            pattern_q = re.compile(r"(Q\d{1,4})\s*[:：\.\)]\s*(.+)", re.I)  # 忽略大小写
             matches = pattern_q.findall(text)
             if matches:
                 for qid, ans in matches:
-                    answers_map[qid] = ans.strip()
+                    answers_map[qid.upper()] = ans.strip()
                 print(f"[DEBUG] 解析到 {len(answers_map)} 道题目答案（Q格式）")
-            else:
-                # 尝试数字序号
-                pattern_n = re.compile(r"^(\d{1,3})[\.、]\s*(.+)$", re.M)
+            
+            # 格式2: GEN_001: 答案 或 GEN_001. 答案（支持生成的题目ID格式）
+            if not answers_map:
+                pattern_gen = re.compile(r"(GEN_\d{1,4})\s*[:：\.\)]\s*(.+)", re.I)
+                matches_gen = pattern_gen.findall(text)
+                if matches_gen:
+                    for qid, ans in matches_gen:
+                        answers_map[qid.upper()] = ans.strip()
+                    print(f"[DEBUG] 解析到 {len(answers_map)} 道题目答案（GEN格式）")
+            
+            # 格式3: 数字序号（1. 答案 或 1、答案 或 1) 答案）- 放宽匹配，允许行首有空白
+            if not answers_map:
+                pattern_n = re.compile(r"^\s*(\d{1,3})[\.、\)]\s*(.+)$", re.M)  # 允许行首空白
                 matches2 = pattern_n.findall(text)
                 if matches2:
                     for num, ans in matches2:
                         qid = f"Q{int(num):03d}"
                         answers_map[qid] = ans.strip()
                     print(f"[DEBUG] 解析到 {len(answers_map)} 道题目答案（数字格式）")
-                else:
-                    print(f"[DEBUG] 未能从文本中解析出答案，文本前100字符: {text[:100]}")
+            
+            # 格式4: 每行一个答案（无题号，按行序号匹配）
+            if not answers_map:
+                lines = [line.strip() for line in text.split('\n') if line.strip()]
+                if len(lines) > 0 and len(lines) <= 100:  # 合理的题目数量
+                    print(f"[DEBUG] 尝试按行解析（共{len(lines)}行）")
+                    for idx, line in enumerate(lines, 1):
+                        # 排除明显的标题行
+                        if not any(keyword in line for keyword in ['答案', '学生', '姓名', '班级', 'answer', 'student']):
+                            qid = f"Q{idx:03d}"
+                            answers_map[qid] = line
+                    if answers_map:
+                        print(f"[DEBUG] 按行解析到 {len(answers_map)} 道题目答案")
+            
+            if not answers_map:
+                print(f"[DEBUG] 未能从文本中解析出答案")
+                print(f"[DEBUG] 文本内容（前500字符）:\n{text[:500]}")
 
         except HTTPException:
             raise
@@ -549,17 +575,25 @@ async def submit_student_answers(
             raise HTTPException(status_code=400, detail=f"解析上传文件失败: {e}")
 
     if not answers_map:
-        error_msg = "未提供可解析的答案数据。\n\n"
-        error_msg += "请确保：\n"
-        error_msg += "1. 已上传 PDF/DOCX/TXT 文件\n"
-        error_msg += "2. 文件中包含答案，格式为：\n"
-        error_msg += "   - Q001: A\n"
-        error_msg += "   - Q002: 答案内容\n"
-        error_msg += "   或\n"
-        error_msg += "   - 1. A\n"
-        error_msg += "   - 2. 答案内容\n\n"
-        error_msg += "💡 推荐使用TXT格式以确保兼容性\n"
-        error_msg += "💡 如果PDF是扫描件，请使用OCR工具或手动输入到TXT文件"
+        error_msg = "❌ 未能解析出答案数据。\n\n"
+        error_msg += "📋 支持的答案格式（任选其一）：\n\n"
+        error_msg += "格式1 - 使用生成的题目ID：\n"
+        error_msg += "  GEN_001: 您的答案\n"
+        error_msg += "  GEN_002: 您的答案\n\n"
+        error_msg += "格式2 - 使用Q编号：\n"
+        error_msg += "  Q001: 您的答案\n"
+        error_msg += "  Q002: 您的答案\n\n"
+        error_msg += "格式3 - 使用数字序号：\n"
+        error_msg += "  1. 您的答案\n"
+        error_msg += "  2. 您的答案\n\n"
+        error_msg += "格式4 - 每行一个答案（无题号）：\n"
+        error_msg += "  第一题的答案\n"
+        error_msg += "  第二题的答案\n\n"
+        error_msg += "💡 提示：\n"
+        error_msg += "  • 推荐使用 TXT 格式以确保兼容性\n"
+        error_msg += "  • PDF扫描件需先OCR转文字\n"
+        error_msg += "  • 题号可使用中英文符号（: . 、）\n"
+        error_msg += "  • 支持行首缩进或空格\n"
         print(f"[DEBUG] {error_msg}")
         raise HTTPException(status_code=400, detail=error_msg)
 
