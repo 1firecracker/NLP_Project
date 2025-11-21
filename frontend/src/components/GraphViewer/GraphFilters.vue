@@ -36,11 +36,13 @@
       <div class="filter-item">
         <label>实体类型</label>
         <el-checkbox-group v-model="selectedTypes" @change="handleTypeFilter">
-          <el-checkbox label="concept">概念</el-checkbox>
-          <el-checkbox label="person">人物</el-checkbox>
-          <el-checkbox label="location">地点</el-checkbox>
-          <el-checkbox label="organization">组织</el-checkbox>
-          <el-checkbox label="time">时间</el-checkbox>
+          <el-checkbox 
+            v-for="type in availableTypes" 
+            :key="type.value" 
+            :label="type.value"
+          >
+            {{ type.label }}
+          </el-checkbox>
         </el-checkbox-group>
       </div>
       
@@ -78,6 +80,16 @@ const searchText = ref('')
 const selectedTypes = ref([])
 const minDegree = ref(0)
 const maxDegree = ref(10) // 初始值，会根据实际数据更新
+
+// 固定的实体类型列表（对应 LightRAG constants.py 中的 DEFAULT_ENTITY_TYPES + unknown）
+const availableTypes = [
+  { value: 'chapterconcept', label: '章节概念' },
+  { value: 'definition', label: '定义' },
+  { value: 'method', label: '方法' },
+  { value: 'application', label: '应用' },
+  { value: 'example', label: '例子' },
+  { value: 'unknown', label: '未知' }
+]
 
 // 计算是否有过滤条件
 const hasFilters = computed(() => {
@@ -121,9 +133,11 @@ const handleDegreeFilter = () => {
 
 // 发送过滤事件
 const emitFilterChange = () => {
+  // 确保类型值都是小写，与过滤逻辑保持一致
+  const normalizedTypes = selectedTypes.value.map(t => t.toLowerCase())
   emit('filter-change', {
     searchText: searchText.value,
-    selectedTypes: selectedTypes.value,
+    selectedTypes: normalizedTypes,
     minDegree: minDegree.value
   })
 }
