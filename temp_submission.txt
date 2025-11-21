@@ -1,0 +1,375 @@
+﻿{
+  "conversation_id": "286d8d8d-45c6-4358-898c-48c6925bb076",
+  "student_name": "ooo",
+  "graded_at": "2025-11-21T03:42:41.919203",
+  "answered_count": 3,
+  "total_questions": 20,
+  "total_score": 150,
+  "max_score": 2000,
+  "average_score": 50.0,
+  "per_question": [
+    {
+      "id": "GEN_001",
+      "question_type": "short_answer",
+      "studentAnswer": "在算法交易中，移动平均线（Moving Average, MA）常用于生成交易信号。假设你有以下股票A过去20天的日收盘价数据（单位：元）：[10, 10.5, 11, 10.8, 11.2, 11.5, 11.8, 12, 12.2, 12, 11.8, 11.5, 11, 10.8, 10.5, 10, 9.8, 9.5, 9, 8.5]。请回答以下子问：\\n(a) 定义简单移动平均线（Simple Moving Average, SMA）的计算公式，并解释它在算法交易中的作用。\\n(b) 计算股票A过去10天的SMA值，并讨论如何基于此信号在风险管理中设置止损点（止损点设置为SMA值的95%）。\\n(c) 比较SMA与指数移动平均线（Exponential Moving Average, EMA）在算法交易中的优缺点，并分析在高波动市场（如价格波动超过20%）中的边界情形。",
+      "score": 50,
+      "feedback": "答案部分正确或表达不完全。",
+      "issues": [
+        "建议补充要点",
+        "LLM评分失败，建议人工复核"
+      ],
+      "knowledge_points": [
+        "算法交易",
+        "风险管理",
+        "数据分析"
+      ]
+    },
+    {
+      "id": "GEN_002",
+      "question_type": "short_answer",
+      "studentAnswer": "A student is choosing between full-time and part-time study modes for a professional course in quantitative finance. (a) Define 'learning mode' and derive a formula for the daily study hours required to achieve a target mastery level, assuming full-time study requires 40 hours per week and part-time study requires 20 hours per week. (b) Compare the two study modes in terms of their impact on work-life balance and learning effectiveness, and discuss boundary scenarios such as financial constraints or personal commitments where one mode might be preferred over the other.\"",
+      "score": 50,
+      "feedback": "答案部分正确或表达不完全。",
+      "issues": [
+        "建议补充要点",
+        "LLM评分失败，建议人工复核"
+      ],
+      "knowledge_points": [
+        "学习模式",
+        "全日制学习",
+        "兼职学习"
+      ]
+    },
+    {
+      "id": "GEN_003",
+      "question_type": "short_answer",
+      "studentAnswer": "",
+      "score": null,
+      "feedback": "未作答",
+      "issues": [
+        "该题未提交答案"
+      ],
+      "knowledge_points": [
+        "学习动机",
+        "职业规划",
+        "教育目标"
+      ]
+    },
+    {
+      "id": "GEN_004",
+      "question_type": "short_answer",
+      "studentAnswer": "",
+      "score": null,
+      "feedback": "未作答",
+      "issues": [
+        "该题未提交答案"
+      ],
+      "knowledge_points": [
+        "金融数据分析技能",
+        "自动交易系统开发",
+        "盈利交易策略"
+      ]
+    },
+    {
+      "id": "GEN_005",
+      "question_type": "Section",
+      "studentAnswer": "",
+      "score": null,
+      "feedback": "未作答",
+      "issues": [
+        "该题未提交答案"
+      ],
+      "knowledge_points": [
+        "算法交易的基本概念",
+        "交易经验评估",
+        "其他交易形式的区别"
+      ]
+    },
+    {
+      "id": "GEN_006",
+      "question_type": "short_answer",
+      "studentAnswer": "",
+      "score": null,
+      "feedback": "未作答",
+      "issues": [
+        "该题未提交答案"
+      ],
+      "knowledge_points": [
+        "算法交易平台的基本概念",
+        "常用算法交易软件",
+        "量化交易入门知识"
+      ]
+    },
+    {
+      "id": "GEN_007",
+      "question_type": "short_answer",
+      "studentAnswer": "a) Defines mean reversion and derives the autocorrelation formula.\\nb) Calculates autocorrelation using given data and applies threshold to detsermine mean reversion absence.\\n",
+      "score": 50,
+      "feedback": "答案部分正确或表达不完全。",
+      "issues": [
+        "建议补充要点",
+        "LLM评分失败，建议人工复核"
+      ],
+      "knowledge_points": [
+        "金融市场基础知识",
+        "全球股市概况",
+        "数据比较能力"
+      ]
+    },
+    {
+      "id": "GEN_008",
+      "question_type": "Section",
+      "studentAnswer": "",
+      "score": null,
+      "feedback": "未作答",
+      "issues": [
+        "该题未提交答案"
+      ],
+      "knowledge_points": [
+        "金融市场交易量比较",
+        "主要金融市场的规模",
+        "选择题答题方法"
+      ]
+    },
+    {
+      "id": "GEN_009",
+      "question_type": "programming",
+      "studentAnswer": "",
+      "score": null,
+      "feedback": "未作答",
+      "issues": [
+        "该题未提交答案"
+      ],
+      "knowledge_points": [
+        "算法交易",
+        "编程语言在金融领域的应用",
+        "量化金融常用工具"
+      ]
+    },
+    {
+      "id": "GEN_010",
+      "question_type": "short_answer",
+      "studentAnswer": "",
+      "score": null,
+      "feedback": "未作答",
+      "issues": [
+        "该题未提交答案"
+      ],
+      "knowledge_points": [
+        "算法交易",
+        "金融市场比较",
+        "市场流行度"
+      ]
+    },
+    {
+      "id": "GEN_011",
+      "question_type": "short_answer",
+      "studentAnswer": "",
+      "score": null,
+      "feedback": "未作答",
+      "issues": [
+        "该题未提交答案"
+      ],
+      "knowledge_points": [
+        "教师姓名",
+        "算法交易",
+        "风险管理",
+        "数据分析",
+        "量化金融常用工具"
+      ]
+    },
+    {
+      "id": "GEN_012",
+      "question_type": "short_answer",
+      "studentAnswer": "",
+      "score": null,
+      "feedback": "未作答",
+      "issues": [
+        "该题未提交答案"
+      ],
+      "knowledge_points": [
+        "算法交易的基本概念",
+        "金融市场中的算法应用",
+        "算法交易策略"
+      ]
+    },
+    {
+      "id": "GEN_013",
+      "question_type": "Section",
+      "studentAnswer": "",
+      "score": null,
+      "feedback": "未作答",
+      "issues": [
+        "该题未提交答案"
+      ],
+      "knowledge_points": [
+        "Python数据抓取技术",
+        "数据库管理基础",
+        "SQL数据库操作"
+      ]
+    },
+    {
+      "id": "GEN_014",
+      "question_type": "short_answer",
+      "studentAnswer": "",
+      "score": null,
+      "feedback": "未作答",
+      "issues": [
+        "该题未提交答案"
+      ],
+      "knowledge_points": [
+        "时间序列分析方法",
+        "市场分类的统计方法",
+        "时间序列特征提取"
+      ]
+    },
+    {
+      "id": "GEN_015",
+      "question_type": "short_answer",
+      "studentAnswer": "",
+      "score": null,
+      "feedback": "未作答",
+      "issues": [
+        "该题未提交答案"
+      ],
+      "knowledge_points": [
+        "统计套利的基本原理",
+        "配对交易的策略和方法",
+        "相关量化分析技术"
+      ]
+    },
+    {
+      "id": "GEN_016",
+      "question_type": "short_answer",
+      "studentAnswer": "",
+      "score": null,
+      "feedback": "未作答",
+      "issues": [
+        "该题未提交答案"
+      ],
+      "knowledge_points": [
+        "风险识别与评估",
+        "资本结构管理",
+        "风险管理策略"
+      ]
+    },
+    {
+      "id": "GEN_017",
+      "question_type": "short_answer",
+      "studentAnswer": "",
+      "score": null,
+      "feedback": "未作答",
+      "issues": [
+        "该题未提交答案"
+      ],
+      "knowledge_points": [
+        "绩效衡量指标",
+        "投资组合优化方法",
+        "风险与回报平衡"
+      ]
+    },
+    {
+      "id": "GEN_018",
+      "question_type": "short_answer",
+      "studentAnswer": "",
+      "score": null,
+      "feedback": "未作答",
+      "issues": [
+        "该题未提交答案"
+      ],
+      "knowledge_points": [
+        "订单簿结构与功能",
+        "高频交易数据特征",
+        "订单簿建模方法"
+      ]
+    },
+    {
+      "id": "GEN_019",
+      "question_type": "short_answer",
+      "studentAnswer": "",
+      "score": null,
+      "feedback": "未作答",
+      "issues": [
+        "该题未提交答案"
+      ],
+      "knowledge_points": [
+        "策略优化",
+        "经纪商选择",
+        "市场技巧"
+      ]
+    },
+    {
+      "id": "GEN_020",
+      "question_type": "short_answer",
+      "studentAnswer": "",
+      "score": null,
+      "feedback": "未作答",
+      "issues": [
+        "该题未提交答案"
+      ],
+      "knowledge_points": [
+        "机器学习在算法交易中的应用场景",
+        "算法交易策略与机器学习模型的结合",
+        "机器学习模型在金融领域的应用"
+      ]
+    }
+  ],
+  "knowledgeAnalysis": {
+    "算法交易": {
+      "masteryLevel": 0.5,
+      "questionCount": 1,
+      "performance": "需改进"
+    },
+    "风险管理": {
+      "masteryLevel": 0.5,
+      "questionCount": 1,
+      "performance": "需改进"
+    },
+    "数据分析": {
+      "masteryLevel": 0.5,
+      "questionCount": 1,
+      "performance": "需改进"
+    },
+    "学习模式": {
+      "masteryLevel": 0.5,
+      "questionCount": 1,
+      "performance": "需改进"
+    },
+    "全日制学习": {
+      "masteryLevel": 0.5,
+      "questionCount": 1,
+      "performance": "需改进"
+    },
+    "兼职学习": {
+      "masteryLevel": 0.5,
+      "questionCount": 1,
+      "performance": "需改进"
+    },
+    "金融市场基础知识": {
+      "masteryLevel": 0.5,
+      "questionCount": 1,
+      "performance": "需改进"
+    },
+    "全球股市概况": {
+      "masteryLevel": 0.5,
+      "questionCount": 1,
+      "performance": "需改进"
+    },
+    "数据比较能力": {
+      "masteryLevel": 0.5,
+      "questionCount": 1,
+      "performance": "需改进"
+    }
+  },
+  "recommendations": [
+    "知识点 算法交易 需加强，建议针对相关题型做专项练习",
+    "知识点 风险管理 需加强，建议针对相关题型做专项练习",
+    "知识点 数据分析 需加强，建议针对相关题型做专项练习",
+    "知识点 学习模式 需加强，建议针对相关题型做专项练习",
+    "知识点 全日制学习 需加强，建议针对相关题型做专项练习",
+    "知识点 兼职学习 需加强，建议针对相关题型做专项练习",
+    "知识点 金融市场基础知识 需加强，建议针对相关题型做专项练习",
+    "知识点 全球股市概况 需加强，建议针对相关题型做专项练习",
+    "知识点 数据比较能力 需加强，建议针对相关题型做专项练习"
+  ]
+}
