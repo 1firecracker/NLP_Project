@@ -69,7 +69,7 @@ async def async_analyze_with_llm(session, stem: str, answer: str):
     for attempt in range(2):  # ✅ 最多重试两次
         try:
             # 使用 ClientTimeout 设置更长的超时（总共180秒，连接30秒）
-            timeout = aiohttp.ClientTimeout(total=180, connect=30, sock_read=150)
+            timeout = aiohttp.ClientTimeout(total=300, connect=30, sock_read=150)
             async with session.post(
                 f"{API_URL}/chat/completions", 
                 headers=headers, 
