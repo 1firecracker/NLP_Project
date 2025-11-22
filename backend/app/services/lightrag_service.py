@@ -62,7 +62,7 @@ class LightRAGService:
             vector_storage=config.settings.lightrag_vector_storage,
             graph_storage=config.settings.lightrag_graph_storage,
             doc_status_storage=config.settings.lightrag_doc_status_storage,
-            chunk_token_size=600,  # 减小块大小，避免超时（从 1200 降到 600）
+            chunk_token_size=300,  # 减小块大小，避免超时（从 1200 降到 600）
             chunk_overlap_token_size=50,  # 减小重叠（从 100 降到 50）
             workspace=conversation_id,  # 使用 conversation_id 作为 workspace
             default_llm_timeout=config.settings.timeout,  # 使用配置的超时时间（400秒）
