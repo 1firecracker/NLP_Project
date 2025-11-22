@@ -1,7 +1,7 @@
 <template>
   <el-container class="app-container">
     <el-header>
-      <h1>LightRAG Web Application</h1>
+      <h1>Agent for Exam</h1>
     </el-header>
     <el-main>
       <router-view />

@@ -2,7 +2,7 @@
 # This script starts both backend and frontend in separate windows
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "Starting LightRAG Web Application" -ForegroundColor Cyan
+Write-Host "Starting Agent for Exam" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
