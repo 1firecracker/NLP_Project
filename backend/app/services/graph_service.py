@@ -3,6 +3,7 @@ from typing import List, Dict, Any, Optional, Set
 from pathlib import Path
 from app.services.lightrag_service import LightRAGService
 from app.services.document_service import DocumentService
+from app.services.memory_service import MemoryService
 
 
 class GraphService:
@@ -13,6 +14,7 @@ class GraphService:
         self.document_service = DocumentService()
         from app.services.conversation_service import ConversationService
         self.conversation_service = ConversationService()
+        self.memory_service = MemoryService()
     
     def _parse_file_path_to_doc_info(self, file_path: str, conversation_id: str) -> Optional[Dict[str, Any]]:
         """解析 file_path 到文档信息
@@ -331,18 +333,24 @@ class GraphService:
             # 解析失败，假设不为空
             return False, False
     
-    async def query(self, conversation_id: str, query: str, mode: str = "mix") -> str:
+    async def query(self, conversation_id: str, query: str, mode: str = "mix", use_history: bool = True) -> str:
         """在对话的知识图谱中查询
         
         Args:
             conversation_id: 对话ID
             query: 查询文本
             mode: 查询模式（naive/local/global/mix）
+            use_history: 是否使用历史对话
             
         Returns:
             查询结果（文本）
         """
-        result = await self.lightrag_service.query(conversation_id, query, mode=mode)
+        # 获取历史对话
+        history = []
+        if use_history:
+            history = self.memory_service.get_recent_history(conversation_id, max_turns=5)
+        
+        result = await self.lightrag_service.query(conversation_id, query, mode=mode, conversation_history=history)
         
         # 如果结果是字符串，直接返回
         if isinstance(result, str):

@@ -6,6 +6,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.services.graph_service import GraphService
+from app.services.memory_service import MemoryService
 
 router = APIRouter(tags=["graph"])
 
@@ -217,6 +218,10 @@ async def query_knowledge_graph_stream(conversation_id: str, request: QueryReque
         - 错误时：{"error": "error message"}
     """
     service = GraphService()
+    memory_service = MemoryService()
+    
+    # 获取历史对话
+    history = memory_service.get_recent_history(conversation_id, max_turns=5)
     
     # 验证查询模式（排除 bypass 模式，因为 bypass 不检索）
     valid_modes = ["naive", "local", "global", "mix"]
@@ -242,8 +247,10 @@ async def query_knowledge_graph_stream(conversation_id: str, request: QueryReque
                 lightrag = await service.lightrag_service.get_lightrag_for_conversation(conversation_id)
                 from lightrag import QueryParam
                 
-                # 使用 bypass 模式查询
+                # 使用 bypass 模式查询（包含历史对话）
                 bypass_param = QueryParam(mode="bypass", stream=True)
+                if history:
+                    bypass_param.conversation_history = history
                 bypass_result = await lightrag.aquery_llm(request.query, param=bypass_param)
                 llm_response = bypass_result.get("llm_response", {})
                 
@@ -303,13 +310,17 @@ async def query_knowledge_graph_stream(conversation_id: str, request: QueryReque
                 newline_text = '\n\n'
                 yield f"{json.dumps({'response': newline_text})}\n"
                 
-                # 直接使用 bypass 模式查询
+                # 直接使用 bypass 模式查询（包含历史对话）
                 bypass_param = QueryParam(mode="bypass", stream=True)
+                if history:
+                    bypass_param.conversation_history = history
                 bypass_result = await lightrag.aquery_llm(request.query, param=bypass_param)
                 llm_response = bypass_result.get("llm_response", {})
             else:
-                # 步骤2：执行查询（知识图谱不为空）
+                # 步骤2：执行查询（知识图谱不为空，包含历史对话）
                 param = QueryParam(mode=request.mode, stream=True)
+                if history:
+                    param.conversation_history = history
                 result = await lightrag.aquery_llm(request.query, param=param)
                 
                 # 步骤3：查询后验证结果
@@ -342,8 +353,10 @@ async def query_knowledge_graph_stream(conversation_id: str, request: QueryReque
                         newline_text = '\n\n'
                         yield f"{json.dumps({'response': newline_text})}\n"
                     
-                    # 使用 bypass 模式重新查询
+                    # 使用 bypass 模式重新查询（包含历史对话）
                     bypass_param = QueryParam(mode="bypass", stream=True)
+                    if history:
+                        bypass_param.conversation_history = history
                     bypass_result = await lightrag.aquery_llm(request.query, param=bypass_param)
                     
                     llm_response = bypass_result.get("llm_response", {})
