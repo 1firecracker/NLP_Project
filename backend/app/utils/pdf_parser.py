@@ -1,4 +1,9 @@
 """PDF 文档解析器"""
+import logging
+# 关闭 pdfminer 的警告信息
+logging.getLogger('pdfminer.pdfinterp').setLevel(logging.ERROR)
+logging.getLogger('pdfminer').setLevel(logging.ERROR)
+
 import pdfplumber
 from typing import List, Dict, Any
 from pathlib import Path
@@ -176,7 +181,7 @@ class PDFParser:
                 
                 print(f"[PDF文本位置提取] 页面 {page_number}: 真实渲染尺寸 = {actual_width} × {actual_height}px (缩放因子: x={actual_scale_factor_x:.4f}, y={actual_scale_factor_y:.4f})")
             except Exception as e:
-                print(f"[PDF文本位置提取] 警告：无法获取真实渲染尺寸，使用理论计算: {e}")
+                # print(f"[PDF文本位置提取] 警告：无法获取真实渲染尺寸，使用理论计算: {e}")
                 # 降级：使用理论计算
                 scale_factor = render_dpi / 72.0  # 150/72 ≈ 2.0833
                 page_width_px = page_width_px_72dpi * scale_factor
