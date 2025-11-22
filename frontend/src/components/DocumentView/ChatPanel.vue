@@ -100,7 +100,7 @@ const graphStore = useGraphStore()
 
 const messagesContainer = ref(null)
 const inputText = ref('')
-const selectedMode = ref('mix')
+const selectedMode = ref('naive')
 const isStreaming = ref(false)
 const currentStreamContent = ref('')
 const currentStreamWarning = ref('')

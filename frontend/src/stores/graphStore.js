@@ -55,7 +55,7 @@ export const useGraphStore = defineStore('graph', () => {
   /**
    * 查询知识图谱
    */
-  async function query(conversationId, queryText, mode = 'mix') {
+  async function query(conversationId, queryText, mode = 'naive') {
     querying.value = true
     error.value = null
     queryResult.value = null

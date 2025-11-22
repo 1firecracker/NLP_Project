@@ -11,7 +11,7 @@ class ChatService {
    * @param {string} mode - 查询模式（mix/local/global/naive）
    * @param {Function} onChunk - 接收到数据块时的回调函数
    */
-  async queryStream(conversationId, query, mode = 'mix', onChunk) {
+  async queryStream(conversationId, query, mode = 'naive', onChunk) {
     const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/api/conversations/${conversationId}/query/stream`, {
       method: 'POST',
       headers: {

@@ -12,7 +12,7 @@ router = APIRouter(tags=["graph"])
 # 请求/响应模型
 class QueryRequest(BaseModel):
     query: str
-    mode: Optional[str] = "mix"  # naive/local/global/mix
+    mode: Optional[str] = "naive"  # naive/local/global/mix
 
 class QueryResponse(BaseModel):
     conversation_id: str

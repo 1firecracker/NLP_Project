@@ -34,7 +34,7 @@ class GraphService {
    * @param {string} mode - 查询模式（naive/local/global/mix，默认 mix）
    * @returns {Promise<Object>} 查询结果
    */
-  async query(conversationId, query, mode = 'mix') {
+  async query(conversationId, query, mode = 'naive') {
     const response = await api.post(`/api/conversations/${conversationId}/query`, {
       query,
       mode

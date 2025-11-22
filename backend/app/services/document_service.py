@@ -1,9 +1,10 @@
 """文档服务，处理文档上传、解析、LightRAG 集成"""
 import json
+import re
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from fastapi import UploadFile
 
@@ -24,6 +25,94 @@ class DocumentService:
         self.document_parser = DocumentParser()
         self.status_dir = Path(config.settings.conversations_metadata_dir) / "document_status"
         self.status_dir.mkdir(parents=True, exist_ok=True)
+    
+    def _clean_base64_and_save(self, text: str, conversation_id: str) -> Tuple[str, Dict[str, str]]:
+        """清理文本中的 base64 字符串，保存到 base_64.json，并返回清理后的文本和映射关系
+        
+        Args:
+            text: 原始文本
+            conversation_id: 对话ID
+            
+        Returns:
+            (清理后的文本, base64映射字典 {序号: base64字符串})
+        """
+        # 获取 base64.json 文件路径（与 kv_store_full_docs.json 同级）
+        print("cleaning base64", "="*70)
+        base_working_dir = Path(config.settings.lightrag_working_dir)
+        base64_file = base_working_dir.parent / conversation_id / conversation_id / "base_64.json"
+        base64_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        # 加载已有的 base64 数据（如果存在）
+        base64_map = {}
+        if base64_file.exists():
+            try:
+                with open(base64_file, 'r', encoding='utf-8') as f:
+                    existing_data = json.load(f)
+                    base64_map = existing_data if isinstance(existing_data, dict) else {}
+            except:
+                base64_map = {}
+        
+        # 获取下一个序号（从已有最大序号+1开始）
+        existing_indices = [int(k) for k in base64_map.keys() if k.isdigit()]
+        next_index = max(existing_indices, default=0) + 1
+        
+        cleaned_text = text
+        
+        # 1. 处理 <latexit> 标签及其内容
+        # 匹配 <latexit> 标签，包括标签属性和标签内容
+        latexit_pattern = r'<latexit[^>]*>([^<]*)</latexit>'
+        
+        def replace_latexit(match):
+            nonlocal next_index
+            full_match = match.group(0)
+            tag_content = match.group(1).strip()
+            
+            # 提取标签中的 sha1_base64 属性值（如果有）
+            sha1_match = re.search(r'sha1_base64="([^"]+)"', full_match)
+            
+            # 提取标签内容中的 base64 字符串（通常是长字符串）
+            base64_in_content = re.search(r'[A-Za-z0-9+/=]{50,}', tag_content)
+            
+            # 优先使用标签内容中的 base64，否则使用 sha1_base64 属性
+            if base64_in_content:
+                base64_value = base64_in_content.group(0)
+            elif sha1_match:
+                base64_value = sha1_match.group(1)
+            elif tag_content and len(tag_content) > 20:
+                base64_value = tag_content
+            else:
+                return ""  # 如果内容太短或没有 base64，直接移除
+            
+            index_str = str(next_index)
+            base64_map[index_str] = base64_value
+            next_index += 1
+            return f"[BASE64_{index_str}]"
+        
+        cleaned_text = re.sub(latexit_pattern, replace_latexit, cleaned_text, flags=re.DOTALL)
+        
+        # 2. 处理独立的 base64 字符串（长度>=50，且不在已替换的引用中）
+        # 先标记已替换的位置，避免重复处理
+        standalone_base64_pattern = r'(?<!\[BASE64_)[A-Za-z0-9+/=]{50,}(?!\])'
+        
+        def replace_standalone(match):
+            nonlocal next_index
+            base64_str = match.group(0)
+            # 验证是否为有效的 base64（不包含空格、换行等）
+            if re.match(r'^[A-Za-z0-9+/=]+$', base64_str):
+                index_str = str(next_index)
+                base64_map[index_str] = base64_str
+                next_index += 1
+                return f"[BASE64_{index_str}]"
+            return base64_str
+        
+        cleaned_text = re.sub(standalone_base64_pattern, replace_standalone, cleaned_text)
+        
+        # 保存 base64 映射到文件（如果有新增）
+        if base64_map:
+            with open(base64_file, 'w', encoding='utf-8') as f:
+                json.dump(base64_map, f, ensure_ascii=False, indent=2)
+        
+        return cleaned_text, base64_map
     
     def _get_status_file(self, conversation_id: str) -> Path:
         """获取状态文件路径"""
@@ -193,10 +282,13 @@ class DocumentService:
             if not text or not text.strip():
                 raise ValueError("文档解析后文本内容为空")
             
-            # 插入到 LightRAG
+            # 清理 base64 字符串并保存
+            cleaned_text, base64_map = self._clean_base64_and_save(text, conversation_id)
+            
+            # 插入到 LightRAG（使用清理后的文本）
             track_id = await self.lightrag_service.insert_document(
                 conversation_id=conversation_id,
-                text=text,
+                text=cleaned_text,
                 doc_id=document_id
             )
             
