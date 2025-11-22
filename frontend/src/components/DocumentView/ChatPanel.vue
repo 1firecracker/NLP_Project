@@ -54,10 +54,10 @@
           style="width: 120px;"
           placeholder="查询模式"
         >
+          <el-option label="简单模式" value="naive" />
           <el-option label="混合模式" value="mix" />
           <el-option label="本地模式" value="local" />
-          <el-option label="全局模式" value="global" />
-          <el-option label="简单模式" value="naive" />
+          <el-option label="全局模式" value="global" /> 
         </el-select>
       </div>
       
