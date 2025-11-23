@@ -345,10 +345,10 @@ class GraphService:
         Returns:
             查询结果（文本）
         """
-        # 获取历史对话
+        # 获取历史对话（减少到3轮，并限制单条消息长度）
         history = []
         if use_history:
-            history = self.memory_service.get_recent_history(conversation_id, max_turns=5)
+            history = self.memory_service.get_recent_history(conversation_id, max_turns=3, max_tokens_per_message=1000)
         
         result = await self.lightrag_service.query(conversation_id, query, mode=mode, conversation_history=history)
         

@@ -181,6 +181,15 @@ async def query_knowledge_graph(conversation_id: str, request: QueryRequest):
         )
     
     try:
+        # 获取历史对话并计算 token（减少到3轮，并限制单条消息长度）
+        memory_service = MemoryService()
+        history = memory_service.get_recent_history(conversation_id, max_turns=3, max_tokens_per_message=500)
+        token_stats = memory_service.calculate_input_tokens(request.query, history, request.mode)
+        print(f"[Token统计] 模式={token_stats['mode']}, 查询={token_stats['query_tokens']}, "
+              f"历史={token_stats['history_tokens']} (保留{token_stats['history_count']}条: "
+              f"用户{token_stats['history_user_count']}条+助手{token_stats['history_assistant_count']}条), "
+              f"总计={token_stats['total_input_tokens']}")
+        
         result = await service.query(conversation_id, request.query, request.mode)
         
         return QueryResponse(
@@ -220,8 +229,15 @@ async def query_knowledge_graph_stream(conversation_id: str, request: QueryReque
     service = GraphService()
     memory_service = MemoryService()
     
-    # 获取历史对话
-    history = memory_service.get_recent_history(conversation_id, max_turns=5)
+    # 获取历史对话（减少到3轮，并限制单条消息长度）
+    history = memory_service.get_recent_history(conversation_id, max_turns=3, max_tokens_per_message=500)
+    
+    # 计算并打印输入 token
+    token_stats = memory_service.calculate_input_tokens(request.query, history, request.mode)
+    print(f"[Token统计] 模式={token_stats['mode']}, 查询={token_stats['query_tokens']}, "
+          f"历史={token_stats['history_tokens']} (保留{token_stats['history_count']}条: "
+          f"用户{token_stats['history_user_count']}条+助手{token_stats['history_assistant_count']}条), "
+          f"总计={token_stats['total_input_tokens']}")
     
     # 验证查询模式（排除 bypass 模式，因为 bypass 不检索）
     valid_modes = ["naive", "local", "global", "mix"]
