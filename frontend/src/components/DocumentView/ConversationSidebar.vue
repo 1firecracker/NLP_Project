@@ -93,7 +93,7 @@
         
         <!-- 知识提取进度 -->
         <div v-if="extractionProgressList.length > 0" class="extraction-progress">
-          <div class="extraction-title">知识提取进度</div>
+          <div class="extraction-title">知识提取进度(约10min/个文档)</div>
           <div 
             v-for="progress in extractionProgressList" 
             :key="progress.fileId"
