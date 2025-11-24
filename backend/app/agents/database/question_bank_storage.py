@@ -47,15 +47,19 @@ def _split_conversation_variant(conversation_id: str):
     return conversation_id, None
 
 
-def _get_bank_file_path(conversation_id: str) -> str:
-    """获取题库文件路径（支持多种 variant）"""
+def _get_bank_file_path(conversation_id: str, filename: str = "question_bank.json") -> str:
+    """获取题库文件路径（支持多种 variant 和自定义文件名）
+    Args:
+        conversation_id: 会话ID
+        filename: 文件名，默认为 "question_bank.json"
+    """
     base_id, variant = _split_conversation_variant(conversation_id)
     if variant:
         folder = os.path.join(BASE_DATA_DIR, base_id, variant)
     else:
         folder = os.path.join(BASE_DATA_DIR, base_id, "quiz")
     _ensure_dir(folder)
-    return os.path.join(folder, "question_bank.json")
+    return os.path.join(folder, filename)
 
 
 def _get_legacy_bank_file_path(conversation_id: str) -> Optional[str]:
@@ -65,6 +69,79 @@ def _get_legacy_bank_file_path(conversation_id: str) -> Optional[str]:
         return None
     folder = os.path.join(BASE_DATA_DIR, f"{base_id}_{variant}", "quiz")
     return os.path.join(folder, "question_bank.json")
+
+def _convert_table_html_to_markdown(html_table: str) -> str:
+    """将HTML表格转换为Markdown表格
+    Args:
+        html_table: HTML格式的表格字符串
+    Returns:
+        Markdown格式的表格字符串
+    """
+    import re
+    
+    if not html_table or '<table' not in html_table.lower():
+        return html_table
+    
+    try:
+        # 提取表格内容
+        table_match = re.search(r'<table[^>]*>(.*?)</table>', html_table, re.DOTALL | re.IGNORECASE)
+        if not table_match:
+            return html_table
+        
+        table_content = table_match.group(1)
+        
+        # 提取所有行
+        rows = re.findall(r'<tr[^>]*>(.*?)</tr>', table_content, re.DOTALL | re.IGNORECASE)
+        if not rows:
+            return html_table
+        
+        markdown_rows = []
+        for i, row in enumerate(rows):
+            # 提取单元格（th或td）
+            cells = re.findall(r'<t[hd][^>]*>(.*?)</t[hd]>', row, re.DOTALL | re.IGNORECASE)
+            if cells:
+                # 清理单元格内容
+                clean_cells = []
+                for cell in cells:
+                    # 移除HTML标签，保留文本
+                    cell_text = re.sub(r'<[^>]+>', '', cell)
+                    # 移除多余空白
+                    cell_text = ' '.join(cell_text.split())
+                    clean_cells.append(cell_text)
+                
+                # 构建Markdown行
+                markdown_rows.append('| ' + ' | '.join(clean_cells) + ' |')
+                
+                # 第一行后添加分隔符
+                if i == 0:
+                    markdown_rows.append('| ' + ' | '.join(['---'] * len(clean_cells)) + ' |')
+        
+        # 替换原HTML表格
+        markdown_table = '\n'.join(markdown_rows)
+        result = html_table.replace(table_match.group(0), '\n' + markdown_table + '\n')
+        return result
+        
+    except Exception as e:
+        print(f"[⚠️ 表格转换失败] {e}")
+        return html_table
+
+def _convert_stem_to_format(stem: str, target_format: str) -> str:
+    """转换题干中的表格格式
+    Args:
+        stem: 题干文本
+        target_format: 目标格式 ("html" 或 "markdown")
+    Returns:
+        转换后的题干
+    """
+    if not stem:
+        return stem
+    
+    if target_format == "markdown":
+        # HTML -> Markdown
+        return _convert_table_html_to_markdown(stem)
+    else:
+        # 暂不支持Markdown -> HTML转换（因为原始就是HTML）
+        return stem
 
 # -----------------------------------------------------------
 # 主函数
@@ -138,33 +215,101 @@ def save_question_bank(conversation_id: str, question_bank: QuestionBank) -> str
     return file_path
 
 
+def save_dual_format_question_bank(conversation_id: str, question_bank: QuestionBank) -> dict:
+    """保存双格式题库（HTML + Markdown）
+    Args:
+        conversation_id: 会话ID
+        question_bank: 题库对象（题干为HTML格式）
+    Returns:
+        包含两个文件路径的字典 {"html": str, "markdown": str}
+    """
+    # 1. 保存HTML版本（原始格式，用于显示）
+    html_path = save_question_bank(conversation_id, question_bank)
+    
+    # 2. 创建Markdown版本（用于LLM分析）
+    markdown_bank = QuestionBank(questions=[])
+    for q in question_bank.questions:
+        # 转换题干中的表格为Markdown
+        markdown_stem = _convert_stem_to_format(q.stem, "markdown")
+        
+        # 创建新问题对象
+        markdown_q = q.model_copy()
+        markdown_q.stem = markdown_stem
+        markdown_bank.questions.append(markdown_q)
+    
+    # 3. 保存Markdown版本
+    markdown_path = _get_bank_file_path(conversation_id, "question_bank_markdown.json")
+    data = {
+        "conversation_id": conversation_id,
+        "saved_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "question_count": len(markdown_bank.questions),
+        "question_bank": markdown_bank.model_dump()
+    }
+    
+    with open(markdown_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    
+    print(f"✅ 已保存双格式题库: HTML={html_path}, Markdown={markdown_path}")
+    
+    return {
+        "html": html_path,
+        "markdown": markdown_path
+    }
+
+
 
 def load_question_bank(conversation_id: str) -> Optional[QuestionBank]:
     """
-    从磁盘加载题库
+    从磁盘加载题库（HTML格式，用于显示）
     Args:
         conversation_id: 会话ID
     Returns:
         QuestionBank 实例或 None
     """
-    file_path = _get_bank_file_path(conversation_id)
+    return load_question_bank_by_format(conversation_id, "html")
+
+
+def load_question_bank_by_format(conversation_id: str, format_type: str = "html") -> Optional[QuestionBank]:
+    """根据格式加载题库
+    Args:
+        conversation_id: 对话ID
+        format_type: "html" 或 "markdown"
+    Returns:
+        题库对象，找不到时返回None
+    """
+    # 确定文件名
+    if format_type == "markdown":
+        filename = "question_bank_markdown.json"
+    else:
+        filename = "question_bank.json"
+    
+    # 构建文件路径
+    file_path = _get_bank_file_path(conversation_id, filename)
+    
     if not os.path.exists(file_path):
-        legacy_path = _get_legacy_bank_file_path(conversation_id)
-        if not legacy_path or not os.path.exists(legacy_path):
-            return None
-        file_path = legacy_path
-
-    with open(file_path, "r", encoding="utf-8") as f:
-        raw = json.load(f)
-
-    qb_data = raw.get("question_bank")
-    if not qb_data:
-        return None
-
+        # 回退到旧路径（仅 HTML）
+        if format_type == "html":
+            legacy_path = _get_legacy_bank_file_path(conversation_id)
+            if legacy_path and os.path.exists(legacy_path):
+                file_path = legacy_path
+            else:
+                return None
+        else:
+            # 如果请求Markdown但不存在，尝试加载HTML
+            print(f"[🔄 Markdown题库不存在，回退到HTML] {conversation_id}")
+            return load_question_bank_by_format(conversation_id, "html")
+    
     try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+
+        qb_data = raw.get("question_bank")
+        if not qb_data:
+            return None
+
         return QuestionBank(**qb_data)
     except Exception as e:
-        print(f"[⚠️ Warning] Failed to load QuestionBank: {e}")
+        print(f"[❌ 加载题库失败] {file_path}: {e}")
         return None
 
 
