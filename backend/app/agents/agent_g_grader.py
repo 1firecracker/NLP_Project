@@ -15,7 +15,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 from app.agents.shared_state import shared_state
-from app.agents.database.question_bank_storage import load_question_bank, save_question_bank
+from app.agents.database.question_bank_storage import load_question_bank, load_question_bank_by_format, save_question_bank
 from app.agents.models.quiz_models import QuestionBank
 from app.agents.database.question_bank_storage import BASE_DATA_DIR
 
@@ -125,7 +125,8 @@ def run_agent_g(conversation_id: str, expected_language: str = "English"):
     qb: QuestionBank = getattr(shared_state, "generated_exam", None)
     if qb is None or not getattr(qb, "questions", None):
         print("⚠️ shared_state.generated_exam 为空，尝试从磁盘加载。")
-        qb = load_question_bank(f"{conversation_id}_generated")
+        # 🆕 使用Markdown格式进行答案批改和分析（Agent需要分析表格数据）
+        qb = load_question_bank_by_format(f"{conversation_id}_generated", "markdown")
 
     if qb is None or not getattr(qb, "questions", None):
         print("❌ 未找到可批改的生成题库，Agent G 终止。")
@@ -286,7 +287,8 @@ def run_grade_student_submission(conversation_id: str, student_name: str, answer
 
     qb = getattr(shared_state, 'generated_exam', None)
     if qb is None or not getattr(qb, 'questions', None):
-        qb = load_question_bank(f"{conversation_id}_generated")
+        # 🆕 使用Markdown格式进行学生答案批改（Agent需要分析表格数据）
+        qb = load_question_bank_by_format(f"{conversation_id}_generated", "markdown")
 
     if qb is None or not getattr(qb, 'questions', None):
         raise ValueError('未找到生成题库，无法评分')

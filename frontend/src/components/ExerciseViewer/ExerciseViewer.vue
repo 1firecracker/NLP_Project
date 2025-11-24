@@ -140,30 +140,31 @@
               :closable="false"
               style="margin-bottom: 16px;"
             />
-            <!-- 展示生成的试题列表 -->
-            <div class="questions-list" v-if="generatedQuestions && generatedQuestions.length">
-              <h3 style="margin-bottom: 12px;">生成的试题列表：</h3>
-
-              <div
-                v-for="q in generatedQuestions"
-                :key="q.id"
-                class="question-item"
-                style="padding: 16px; border: 1px solid #ddd; border-radius: 10px; margin-bottom: 16px;"
-              >
-                <h4>{{ q.id }}. {{ q.stem }}</h4>
-
-                <!-- 选择题选项 -->
-                <ul v-if="q.options && q.options.length > 0" style="margin-top: 8px;">
-                  <li v-for="(opt, idx) in q.options" :key="idx">{{ opt }}</li>
-                </ul>
-
-                <!-- 难度 & 题型 & 知识点 -->
-                <div style="margin-top: 12px; font-size: 13px; color: #666;">
-                  <span><strong>题型：</strong>{{ q.question_type }}</span> |
-                  <span><strong>难度：</strong>{{ q.difficulty }}</span> |
-                  <span><strong>知识点：</strong>{{ q.knowledge_points?.join(', ') }}</span>
-                </div>
-              </div>
+            <!-- 展示生成的试题摘要 -->
+            <div class="questions-summary" v-if="generatedQuestions && generatedQuestions.length">
+              <el-descriptions :column="2" border>
+                <el-descriptions-item label="试题总数">{{ generatedQuestions.length }} 道</el-descriptions-item>
+                <el-descriptions-item label="题型分布">
+                  <el-tag v-for="(count, type) in questionTypeStats" :key="type" size="small" style="margin-right: 4px;">
+                    {{ type }}: {{ count }}
+                  </el-tag>
+                </el-descriptions-item>
+                <el-descriptions-item label="难度分布">
+                  <el-tag v-for="(count, level) in difficultyStats" :key="level" size="small" 
+                    :type="level === 'hard' ? 'danger' : level === 'medium' ? 'warning' : 'success'"
+                    style="margin-right: 4px;">
+                    {{ level }}: {{ count }}
+                  </el-tag>
+                </el-descriptions-item>
+                <el-descriptions-item label="操作">
+                  <el-button type="primary" @click="showQuestionsDialog" size="small">
+                    查看详情
+                  </el-button>
+                  <el-button type="success" @click="downloadExamPaper" size="small" style="margin-left: 8px;">
+                    下载试卷
+                  </el-button>
+                </el-descriptions-item>
+              </el-descriptions>
             </div>
 
             <div class="questions-list" v-else>
@@ -174,6 +175,105 @@
       </el-card>
     </div>
     
+    <!-- 查看题目详情对话框 -->
+    <el-dialog
+      v-model="questionsDialogVisible"
+      title="生成的试题详情"
+      width="900px"
+      :close-on-click-modal="false"
+      destroy-on-close
+    >
+      <div v-if="generatedQuestions && generatedQuestions.length" class="questions-dialog-content">
+        <!-- 题目导航 -->
+        <div class="question-navigation">
+          <el-button 
+            :disabled="currentQuestionIndex === 0"
+            @click="prevQuestion"
+            size="small"
+          >
+            上一题
+          </el-button>
+          <span class="question-progress">
+            {{ currentQuestionIndex + 1 }} / {{ generatedQuestions.length }}
+          </span>
+          <el-button 
+            :disabled="currentQuestionIndex === generatedQuestions.length - 1"
+            @click="nextQuestion"
+            size="small"
+          >
+            下一题
+          </el-button>
+        </div>
+
+        <!-- 当前题目展示 -->
+        <div v-if="currentQuestion" class="current-question">
+          <div class="question-header">
+            <h3>{{ currentQuestion.id }}</h3>
+            <div class="question-meta">
+              <el-tag size="small" type="info">{{ currentQuestion.question_type }}</el-tag>
+              <el-tag size="small" 
+                :type="currentQuestion.difficulty === 'hard' ? 'danger' : currentQuestion.difficulty === 'medium' ? 'warning' : 'success'"
+              >
+                {{ currentQuestion.difficulty }}
+              </el-tag>
+            </div>
+          </div>
+
+          <!-- 题目内容（渲染HTML） -->
+          <div class="question-stem" v-html="parseQuestionContent(currentQuestion.stem)"></div>
+
+          <!-- 选择题选项 -->
+          <div v-if="currentQuestion.options && currentQuestion.options.length > 0" class="question-options">
+            <div 
+              v-for="(opt, idx) in currentQuestion.options" 
+              :key="idx"
+              class="option-item"
+            >
+              <span class="option-label">{{ String.fromCharCode(65 + idx) }}.</span>
+              <span v-html="parseQuestionContent(opt)"></span>
+            </div>
+          </div>
+
+          <!-- 答案 -->
+          <div v-if="currentQuestion.answer" class="question-answer">
+            <el-divider />
+            <div class="answer-section">
+              <strong>答案：</strong>
+              <span v-html="parseQuestionContent(currentQuestion.answer)"></span>
+            </div>
+          </div>
+
+          <!-- 解析 -->
+          <div v-if="currentQuestion.explanation" class="question-explanation">
+            <div class="explanation-section">
+              <strong>解析：</strong>
+              <span v-html="parseQuestionContent(currentQuestion.explanation)"></span>
+            </div>
+          </div>
+
+          <!-- 知识点 -->
+          <div v-if="currentQuestion.knowledge_points && currentQuestion.knowledge_points.length" class="question-knowledge">
+            <el-divider />
+            <div class="knowledge-section">
+              <strong>知识点：</strong>
+              <el-tag 
+                v-for="(kp, idx) in currentQuestion.knowledge_points" 
+                :key="idx"
+                size="small"
+                style="margin-right: 4px;"
+              >
+                {{ kp }}
+              </el-tag>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <template #footer>
+        <el-button @click="questionsDialogVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 查看样本详情对话框 -->
     <el-dialog
       v-model="viewSampleDialogVisible"
@@ -197,10 +297,10 @@
             <el-button
               type="primary"
               size="small"
-              @click="copyMarkdown"
+              @click="copyText"
               :icon="DocumentCopy"
             >
-              复制解析文本
+              复制文本
             </el-button>
           </div>
           
@@ -258,7 +358,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown, UploadFilled, MagicStick, DocumentCopy } from '@element-plus/icons-vue'
 import { useConversationStore } from '../../stores/conversationStore'
@@ -278,11 +378,212 @@ const generationStatus = ref('')
 const generationResult = ref(null)
 const uploadRef = ref(null)
 const generatedQuestions = ref([])   // 用来存放后端返回的题目列表
+const questionsDialogVisible = ref(false)  // 题目详情弹窗显示状态
+const currentQuestionIndex = ref(0)  // 当前显示的题目索引
 
+// MathJax 渲染函数
+const renderMathJax = () => {
+  nextTick(() => {
+    if (window.MathJax && window.MathJax.typesetPromise) {
+      window.MathJax.typesetPromise().catch((err) => {
+        console.warn('MathJax rendering error:', err)
+      })
+    }
+  })
+}
+
+// 监听弹窗打开和题目切换，触发 MathJax 渲染
+watch(questionsDialogVisible, (newVal) => {
+  if (newVal) {
+    renderMathJax()
+  }
+})
+
+watch(currentQuestionIndex, () => {
+  if (questionsDialogVisible.value) {
+    renderMathJax()
+  }
+})
+
+// 监听会话切换，重新加载试题
+watch(() => convStore.currentConversationId, (newId, oldId) => {
+  if (newId && newId !== oldId) {
+    console.log('🔄 会话切换，重新加载数据:', newId)
+    loadSamples()
+    loadGeneratedQuestions()
+  }
+})
+
+
+// 计算属性
+const currentQuestion = computed(() => {
+  if (generatedQuestions.value && generatedQuestions.value.length > currentQuestionIndex.value) {
+    return generatedQuestions.value[currentQuestionIndex.value]
+  }
+  return null
+})
+
+const questionTypeStats = computed(() => {
+  const stats = {}
+  generatedQuestions.value.forEach(q => {
+    const type = q.question_type || 'unknown'
+    stats[type] = (stats[type] || 0) + 1
+  })
+  return stats
+})
+
+const difficultyStats = computed(() => {
+  const stats = {}
+  generatedQuestions.value.forEach(q => {
+    const level = q.difficulty || 'medium'
+    stats[level] = (stats[level] || 0) + 1
+  })
+  return stats
+})
 
 // 方法
 const toggleSampleSection = () => {
   sampleSectionCollapsed.value = !sampleSectionCollapsed.value
+}
+
+const showQuestionsDialog = () => {
+  currentQuestionIndex.value = 0
+  questionsDialogVisible.value = true
+}
+
+const nextQuestion = () => {
+  if (currentQuestionIndex.value < generatedQuestions.value.length - 1) {
+    currentQuestionIndex.value++
+  }
+}
+
+const prevQuestion = () => {
+  if (currentQuestionIndex.value > 0) {
+    currentQuestionIndex.value--
+  }
+}
+
+const parseQuestionContent = (content) => {
+  if (!content) return ''
+  
+  let html = content
+  
+  // 🆕 解析Markdown表格（优先处理，在处理HTML之前）
+  // 匹配格式：| Header | Header | \n |--------|--------| \n | Cell | Cell |
+  const markdownTableRegex = /\|(.+)\|\n\|[\s\-:]+\|\n((?:\|.+\|\n?)+)/g
+  html = html.replace(markdownTableRegex, (match, headerRow, bodyRows) => {
+    // 解析表头
+    const headers = headerRow.split('|').map(h => h.trim()).filter(h => h)
+    
+    // 解析数据行
+    const rows = bodyRows.trim().split('\n').map(row => {
+      return row.split('|').map(cell => cell.trim()).filter(cell => cell)
+    })
+    
+    // 构建HTML表格
+    let tableHtml = '<table class="question-table" border="1" style="border-collapse: collapse; margin: 10px 0;">'
+    
+    // 表头
+    tableHtml += '<thead><tr>'
+    headers.forEach(header => {
+      tableHtml += `<th style="padding: 8px; border: 1px solid #ddd; background-color: #f0f0f0;">${header}</th>`
+    })
+    tableHtml += '</tr></thead>'
+    
+    // 表体
+    tableHtml += '<tbody>'
+    rows.forEach(row => {
+      tableHtml += '<tr>'
+      row.forEach(cell => {
+        tableHtml += `<td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${cell}</td>`
+      })
+      tableHtml += '</tr>'
+    })
+    tableHtml += '</tbody></table>'
+    
+    return tableHtml
+  })
+  
+  // 解析图片：将相对路径转换为完整URL
+  html = html.replace(/<img([^>]*)src=["']([^"']+)["']([^>]*)>/gi, (match, before, src, after) => {
+    // 如果是相对路径，构建完整URL
+    if (!src.startsWith('http') && !src.startsWith('data:')) {
+      const baseUrl = 'http://localhost:8000'
+      const conversationId = convStore.currentConversationId
+      // src 格式: images/image_4_1.jpg
+      // 尝试从多个可能的目录加载图片
+      // 优先尝试 _corrected 目录，然后是原始目录
+      const fullSrc = `${baseUrl}/data/${conversationId}_corrected/${src}`
+      return `<img${before}src="${fullSrc}"${after} onerror="this.src='${baseUrl}/data/${conversationId}/${src}'" style="max-width: 80%; height: auto; display: block; margin: 10px auto;">`
+    }
+    return match
+  })
+  
+  // 解析表格：将 <table ...> 标签转换为 HTML
+  html = html.replace(/<table([^>]*)>/gi, '<table$1 class="question-table">')
+  
+  // 解析 LaTeX 数学公式：$ ... $ 和 $$ ... $$
+  // 先处理 $$ ... $$ (块级公式)
+  html = html.replace(/\$\$([^$]+)\$\$/g, (match, formula) => {
+    return `<span class="math-block">\\[${formula}\\]</span>`
+  })
+  
+  // 再处理 $ ... $ (行内公式)
+  html = html.replace(/\$([^$]+)\$/g, (match, formula) => {
+    return `<span class="math-inline">\\(${formula}\\)</span>`
+  })
+  
+  // 处理换行
+  html = html.replace(/\n/g, '<br>')
+  
+  return html
+}
+
+const downloadExamPaper = async () => {
+  if (!generatedQuestions.value || generatedQuestions.value.length === 0) {
+    ElMessage.warning('暂无试题可下载')
+    return
+  }
+
+  if (!convStore.currentConversationId) {
+    ElMessage.error('请先选择会话')
+    return
+  }
+
+  try {
+    ElMessage.info('正在生成试卷PDF，请稍候...')
+    
+    const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+    const url = `${baseURL}/api/conversations/${convStore.currentConversationId}/exercises/download_exam_paper`
+    
+    // 使用fetch下载文件
+    const response = await fetch(url)
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: '下载失败' }))
+      throw new Error(errorData.detail || '下载失败')
+    }
+    
+    // 获取文件blob
+    const blob = await response.blob()
+    
+    // 创建下载链接
+    const downloadUrl = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = downloadUrl
+    link.download = `试卷_${new Date().toISOString().split('T')[0]}.pdf`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    
+    // 释放blob URL
+    window.URL.revokeObjectURL(downloadUrl)
+    
+    ElMessage.success('试卷下载成功')
+  } catch (error) {
+    console.error('下载试卷失败:', error)
+    ElMessage.error('下载试卷失败: ' + (error.message || '未知错误'))
+  }
 }
 
 const handleCustomUpload = async (options) => {
@@ -380,6 +681,43 @@ const loadSamples = async () => {
   }
 }
 
+// 加载已生成的试题
+const loadGeneratedQuestions = async () => {
+  if (!convStore.currentConversationId) return
+  
+  try {
+    const qRes = await exerciseService.getGeneratedQuestions(convStore.currentConversationId)
+    if (qRes && qRes.questions && qRes.questions.length > 0) {
+      generatedQuestions.value = qRes.questions
+      generationResult.value = {
+        conversation_id: qRes.conversation_id,
+        question_count: qRes.question_count
+      }
+      generationStatus.value = `✅ 已加载 ${qRes.questions.length} 道试题（从缓存）`
+      console.log('✅ 自动加载已生成的试题:', qRes.questions.length, '道')
+    } else {
+      // 没有已生成的试题，清空状态
+      generatedQuestions.value = []
+      generationResult.value = null
+      generationStatus.value = ''
+    }
+  } catch (error) {
+    // 404 或其他错误表示还没有生成过试题，这是正常情况
+    if (error.response?.status === 404 || error.status === 404) {
+      console.log('ℹ️ 当前会话暂无生成的试题')
+      generatedQuestions.value = []
+      generationResult.value = null
+      generationStatus.value = ''
+    } else {
+      console.error('加载生成试题失败:', error)
+      // 其他错误也不影响页面正常使用
+      generatedQuestions.value = []
+      generationResult.value = null
+      generationStatus.value = ''
+    }
+  }
+}
+
 // 启动轮询
 const startPolling = () => {
   // 避免重复启动
@@ -466,54 +804,6 @@ const copyText = async () => {
       ElMessage.error('复制失败，请手动复制')
     }
     document.body.removeChild(textArea)
-  }
-}
-
-const copyMarkdown = async () => {
-  if (!currentSample.value || !convStore.currentConversationId) {
-    ElMessage.warning('样本详情未加载')
-    return
-  }
-  
-  try {
-    // 调用后端 API 获取 Markdown 内容（优先），不存在则返回纯文本
-    const response = await exerciseService.getSampleMarkdown(
-      convStore.currentConversationId, 
-      currentSample.value.sample_id
-    )
-    
-    const markdownContent = response.markdown
-    
-    if (!markdownContent || markdownContent.trim() === '') {
-      ElMessage.warning('没有可复制的解析内容')
-      return
-    }
-    
-    // 复制到剪贴板
-    await navigator.clipboard.writeText(markdownContent)
-    ElMessage.success('解析文本已复制到剪贴板')
-  } catch (error) {
-    console.error('复制 Markdown 失败:', error)
-    
-    // 降级方案：尝试使用 textContent
-    if (sampleDetail.value?.text_content) {
-      try {
-        const textArea = document.createElement('textarea')
-        textArea.value = sampleDetail.value.text_content
-        textArea.style.position = 'fixed'
-        textArea.style.opacity = '0'
-        document.body.appendChild(textArea)
-        textArea.select()
-        document.execCommand('copy')
-        document.body.removeChild(textArea)
-        ElMessage.success('文本已复制到剪贴板（降级为纯文本）')
-      } catch (err) {
-        console.error('降级复制也失败:', err)
-        ElMessage.error('复制失败: ' + (error.message || '未知错误'))
-      }
-    } else {
-      ElMessage.error('复制失败: ' + (error.message || '未知错误'))
-    }
   }
 }
 
@@ -650,37 +940,6 @@ const formatTime = (timeStr) => {
   return date.toLocaleString('zh-CN')
 }
 
-// 监听对话变化，自动刷新样本列表和生成的题目
-watch(
-  () => convStore.currentConversationId,
-  async (newId, oldId) => {
-    if (newId && newId !== oldId) {
-      console.log(`[ExerciseViewer] 对话切换: ${oldId} -> ${newId}`)
-      
-      // 停止旧的轮询
-      stopPolling()
-      
-      // 重置状态
-      viewSampleDialogVisible.value = false
-      currentSample.value = null
-      sampleDetail.value = null
-      generatedQuestions.value = []
-      generationResult.value = null
-      
-      // 加载新对话的数据
-      await loadSamples()
-      await loadGeneratedQuestions()
-    } else if (!newId) {
-      // 没有选中对话，清空数据
-      samples.value = []
-      generatedQuestions.value = []
-      generationResult.value = null
-      stopPolling()
-    }
-  },
-  { immediate: true }
-)
-
 // 生命周期
 onMounted(() => {
   // 从路由参数同步 conversation_id 到 store
@@ -689,8 +948,9 @@ onMounted(() => {
     convStore.selectConversation(conversationId)
   }
   
-  // watch 会在 immediate: true 时自动加载，这里不需要重复调用
-  // loadSamples()
+  loadSamples()
+  // 自动加载已保存的生成试题
+  loadGeneratedQuestions()
 })
 
 onUnmounted(() => {
@@ -869,6 +1129,166 @@ onUnmounted(() => {
 .question-item {
   word-wrap: break-word; /* 自动换行，避免题干太长撑爆布局 */
   white-space: normal;
+}
+
+/* 题目详情对话框样式 */
+.questions-dialog-content {
+  padding: 16px;
+}
+
+.question-navigation {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 24px;
+  padding: 12px;
+  background: #f5f7fa;
+  border-radius: 8px;
+}
+
+.question-progress {
+  font-size: 16px;
+  font-weight: 500;
+  color: #409eff;
+  min-width: 80px;
+  text-align: center;
+}
+
+.current-question {
+  padding: 20px;
+  background: white;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  min-height: 400px;
+}
+
+.question-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #409eff;
+}
+
+.question-header h3 {
+  margin: 0;
+  font-size: 18px;
+  color: #303133;
+  flex: 1;
+}
+
+.question-meta {
+  display: flex;
+  gap: 8px;
+}
+
+.question-stem {
+  font-size: 15px;
+  line-height: 1.8;
+  color: #303133;
+  margin-bottom: 20px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.question-options {
+  margin: 20px 0;
+}
+
+.option-item {
+  display: flex;
+  align-items: flex-start;
+  padding: 12px;
+  margin-bottom: 8px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #e4e7ed;
+  transition: all 0.3s;
+}
+
+.option-item:hover {
+  background: #ecf5ff;
+  border-color: #b3d8ff;
+}
+
+.option-label {
+  font-weight: 600;
+  color: #409eff;
+  margin-right: 12px;
+  min-width: 24px;
+}
+
+.question-answer,
+.question-explanation,
+.question-knowledge {
+  margin-top: 16px;
+}
+
+.answer-section,
+.explanation-section,
+.knowledge-section {
+  padding: 12px;
+  background: #f0f9ff;
+  border-left: 4px solid #409eff;
+  border-radius: 4px;
+  line-height: 1.8;
+}
+
+.answer-section strong,
+.explanation-section strong,
+.knowledge-section strong {
+  color: #409eff;
+  margin-right: 8px;
+}
+
+/* 题目内容中的表格样式 */
+:deep(.question-table) {
+  border-collapse: collapse;
+  margin: 16px auto;
+  max-width: 100%;
+  background: white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+:deep(.question-table td),
+:deep(.question-table th) {
+  border: 1px solid #dcdfe6;
+  padding: 8px 12px;
+  text-align: center;
+}
+
+:deep(.question-table th) {
+  background: #f5f7fa;
+  font-weight: 600;
+  color: #303133;
+}
+
+/* LaTeX 数学公式样式 */
+:deep(.math-inline),
+:deep(.math-block) {
+  font-family: 'Times New Roman', serif;
+}
+
+:deep(.math-block) {
+  display: block;
+  margin: 12px 0;
+  text-align: center;
+}
+
+/* 问题摘要样式 */
+.questions-summary {
+  margin-top: 16px;
+}
+
+.questions-summary :deep(.el-descriptions__label) {
+  font-weight: 600;
+  color: #606266;
+}
+
+.questions-summary :deep(.el-descriptions__content) {
+  color: #303133;
 }
 </style>
 
