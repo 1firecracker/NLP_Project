@@ -158,6 +158,60 @@ def _convert_markdown_table_to_html(markdown_text: str) -> str:
     
     return result
 
+
+async def _generate_answer_for_table_question(session, question_id: str, stem: str) -> str:
+    """为包含表格的题目生成答案"""
+    if '<table' not in stem:
+        return None
+    
+    # 将HTML表格转为Markdown供LLM理解
+    stem_for_llm = _convert_html_table_to_markdown(stem)
+    
+    prompt = f"""请为以下题目提供详细的答案。题目包含表格数据，请仔细分析表格中的信息来回答问题。
+
+题目：
+{stem_for_llm}
+
+要求：
+1. 如果题目有多个子问题(a)(b)(c)等，请分别作答
+2. 对于计算题，给出计算步骤和最终结果
+3. 对于分析题，给出清晰的分析思路和结论
+4. 答案要简洁明确，重点突出关键步骤和结论
+5. 使用中文作答
+
+请直接输出答案，不要重复题目：
+"""
+    
+    payload = {
+        "model": MODEL_NAME,
+        "messages": [
+            {"role": "system", "content": "你是一名数据挖掘和机器学习领域的专家，擅长解答算法、数学计算和数据分析相关的问题。"},
+            {"role": "user", "content": prompt}
+        ],
+        "max_tokens": 2000,
+        "temperature": 0.3,
+    }
+    
+    try:
+        print(f"[→] 正在为表格题目 {question_id} 生成答案...")
+        async with session.post(f"{API_URL}/chat/completions", headers=HEADERS, json=payload, timeout=300) as resp:
+            res = await resp.json()
+            if "error" in res:
+                print(f"❌ API错误: {res['error']}")
+                return None
+            
+            if "choices" not in res or len(res["choices"]) == 0:
+                print(f"❌ 响应格式错误")
+                return None
+            
+            answer = res["choices"][0]["message"]["content"].strip()
+            print(f"✅ 表格题目 {question_id} 答案已生成 (长度: {len(answer)})")
+            return answer
+    except Exception as e:
+        print(f"❌ 表格题目 {question_id} 答案生成失败: {e}")
+        return None
+
+
 # -----------------------------------------------------------
 # Prompt 构造
 # -----------------------------------------------------------
@@ -322,6 +376,17 @@ async def async_generate_section(session, section, distribution_model, examples=
                     item['answer'] = _convert_markdown_table_to_html(item['answer'])
                 if 'explanation' in item and item['explanation']:
                     item['explanation'] = _convert_markdown_table_to_html(item['explanation'])
+
+            # 🆕 为包含表格的题目生成答案
+            for idx, item in enumerate(items, 1):
+                stem = item.get('stem', '')
+                answer = item.get('answer', '')
+                # 如果题干包含表格且答案为空或为待补充，则生成答案
+                if '<table' in stem and (not answer or answer == '（待补充）'):
+                    question_id = f"{section.get('title', 'Q')}_{idx}"
+                    generated_answer = await _generate_answer_for_table_question(session, question_id, stem)
+                    if generated_answer:
+                        item['answer'] = generated_answer
 
             # 超额裁剪（不足不做二次重试，保持最小改动策略）
             if expected_count is not None and len(items) > expected_count:

@@ -40,33 +40,35 @@ with open(qb_file, 'r', encoding='utf-8') as f:
     qb_data = json.load(f)
 
 # 修复每个题目
+updated_count = 0
 for question in qb_data['question_bank']['questions']:
     stem = question['stem']
     
     # 检查题干中是否提到了Table 1/2/3
     for table_name, table_html in tables.items():
         if table_name in stem and '<table' not in stem:
-            # 在提到表格的位置后插入表格HTML
-            # 查找 "Table X:" 或 "Table X." 的位置
-            pattern = rf'{table_name}[:\.]'
+            # 在提到表格的句子后插入表格HTML
+            # 查找句子结束的位置（句号、问号或换行）
+            pattern = rf'({re.escape(table_name)}[^.?!\n]*[.?!])'
             match = re.search(pattern, stem)
             if match:
-                # 在句子末尾插入表格
-                insert_pos = stem.find('.', match.end()) + 1
-                if insert_pos > 0:
-                    new_stem = stem[:insert_pos] + '\n\n' + table_html + '\n\n' + stem[insert_pos:]
-                    question['stem'] = new_stem
-                    print(f"✅ 已将 {table_name} 添加到题目 {question['id']}")
+                # 在匹配的句子后插入表格
+                sentence_end = match.end()
+                new_stem = stem[:sentence_end] + '\n\n' + table_html + '\n\n' + stem[sentence_end:]
+                question['stem'] = new_stem
+                updated_count += 1
+                print(f"✅ 已将 {table_name} 添加到题目 {question['id']}")
 
 # 备份原文件
-backup_file = qb_file.with_suffix('.json.backup')
+backup_file = qb_file.with_suffix('.json.backup3')
 import shutil
 shutil.copy(qb_file, backup_file)
-print(f"📦 原文件已备份到: {backup_file}")
+print(f"\n📦 原文件已备份到: {backup_file}")
 
 # 保存修复后的题库
 with open(qb_file, 'w', encoding='utf-8') as f:
     json.dump(qb_data, f, ensure_ascii=False, indent=2)
 
+print(f"✅ 共更新 {updated_count} 个题目")
 print(f"✅ 题库已更新: {qb_file}")
 print("\n请重新加载前端页面以查看更新后的表格")
