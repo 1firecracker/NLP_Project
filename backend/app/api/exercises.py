@@ -775,3 +775,34 @@ async def download_grading_pdf(conversation_id: str, pdf_path: str):
     )
 
 
+@router.get(
+    "/api/conversations/{conversation_id}/exercises/download_exam_paper"
+)
+async def download_exam_paper(conversation_id: str):
+    """
+    下载生成的试卷PDF
+    """
+    try:
+        service = ExerciseService()
+        
+        # 生成试卷PDF
+        pdf_path = await run_in_threadpool(
+            service.generate_exam_paper_pdf,
+            f"{conversation_id}_generated"
+        )
+        
+        if not pdf_path or not Path(pdf_path).exists():
+            raise HTTPException(status_code=404, detail="试卷PDF生成失败或文件不存在")
+        
+        return FileResponse(
+            path=pdf_path,
+            filename=f"试卷_{conversation_id}.pdf",
+            media_type="application/pdf"
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        print(f"[ERROR] 下载试卷PDF失败: {e}")
+        raise HTTPException(status_code=500, detail=f"生成试卷失败: {str(e)}")
+
+
