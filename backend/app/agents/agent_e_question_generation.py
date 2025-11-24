@@ -58,6 +58,106 @@ def _extract_json_array(text: str):
             pass
     return []
 
+
+def _convert_html_table_to_markdown(html_text: str) -> str:
+    """将HTML表格转换为Markdown表格格式，供LLM理解"""
+    if not html_text or '<table' not in html_text.lower():
+        return html_text
+    
+    result = html_text
+    # 查找所有表格
+    table_pattern = re.compile(r'<table[^>]*>(.*?)</table>', re.DOTALL | re.IGNORECASE)
+    
+    for table_match in table_pattern.finditer(html_text):
+        table_html = table_match.group(0)
+        table_content = table_match.group(1)
+        
+        # 提取所有行
+        rows = re.findall(r'<tr[^>]*>(.*?)</tr>', table_content, re.DOTALL | re.IGNORECASE)
+        if not rows:
+            continue
+        
+        markdown_rows = []
+        for i, row in enumerate(rows):
+            # 提取单元格
+            cells = re.findall(r'<t[hd][^>]*>(.*?)</t[hd]>', row, re.DOTALL | re.IGNORECASE)
+            if cells:
+                # 清理单元格内容
+                clean_cells = []
+                for cell in cells:
+                    cell_text = re.sub(r'<[^>]+>', '', cell)
+                    cell_text = ' '.join(cell_text.split())
+                    clean_cells.append(cell_text)
+                
+                # 构建Markdown行
+                markdown_rows.append('| ' + ' | '.join(clean_cells) + ' |')
+                
+                # 第一行后添加分隔符
+                if i == 0:
+                    markdown_rows.append('| ' + ' | '.join(['---'] * len(clean_cells)) + ' |')
+        
+        # 替换原HTML表格
+        if markdown_rows:
+            markdown_table = '\n' + '\n'.join(markdown_rows) + '\n'
+            result = result.replace(table_html, markdown_table)
+    
+    return result
+
+
+def _convert_markdown_table_to_html(markdown_text: str) -> str:
+    """将Markdown表格转换为HTML表格格式，用于保存和显示"""
+    if not markdown_text or '|' not in markdown_text:
+        return markdown_text
+    
+    result = markdown_text
+    # 匹配Markdown表格
+    # 格式：| Header | Header |\n|--------|--------|\n| Cell | Cell |
+    table_pattern = re.compile(
+        r'(\|.+\|\n\|[\s\-:]+\|\n(?:\|.+\|\n?)+)',
+        re.MULTILINE
+    )
+    
+    for table_match in table_pattern.finditer(markdown_text):
+        markdown_table = table_match.group(0)
+        lines = [line.strip() for line in markdown_table.split('\n') if line.strip()]
+        
+        if len(lines) < 2:
+            continue
+        
+        # 第一行是表头
+        header_cells = [cell.strip() for cell in lines[0].split('|') if cell.strip()]
+        
+        # 第二行是分隔符，跳过
+        # 其余行是数据
+        data_rows = []
+        for line in lines[2:]:
+            cells = [cell.strip() for cell in line.split('|') if cell.strip()]
+            if cells:
+                data_rows.append(cells)
+        
+        # 构建HTML表格
+        html_parts = ['<table>']
+        
+        # 表头
+        html_parts.append('<tr>')
+        for cell in header_cells:
+            html_parts.append(f'<td>{cell}</td>')
+        html_parts.append('</tr>')
+        
+        # 数据行
+        for row_cells in data_rows:
+            html_parts.append('<tr>')
+            for cell in row_cells:
+                html_parts.append(f'<td>{cell}</td>')
+            html_parts.append('</tr>')
+        
+        html_parts.append('</table>')
+        
+        html_table = ''.join(html_parts)
+        result = result.replace(markdown_table, html_table)
+    
+    return result
+
 # -----------------------------------------------------------
 # Prompt 构造
 # -----------------------------------------------------------
@@ -109,8 +209,11 @@ def build_prompt(section, distribution_model, examples=None, global_difficulty="
     if examples:
         example_snippets = []
         for q in examples[:3]:
+            # 🆕 将样题中的HTML表格转换为Markdown，让LLM更容易理解和模仿
+            stem_for_llm = _convert_html_table_to_markdown(q.stem)
+            
             snippet = (
-                f"题干：{q.stem}\n"
+                f"题干：{stem_for_llm}\n"
                 f"答案：{q.answer or '（无答案）'}\n"
                 f"知识点：{', '.join(q.knowledge_points)}\n"
                 f"难度：{q.difficulty}\n"
@@ -125,10 +228,17 @@ def build_prompt(section, distribution_model, examples=None, global_difficulty="
                   f"knowledge_points 字段可以使用中文。"
 
     prompt += """
+【表格格式说明】
+如果题目需要包含表格数据，请使用Markdown表格格式：
+| 列1 | 列2 | 列3 |
+|-----|-----|-----|
+| 数据1 | 数据2 | 数据3 |
+| 数据4 | 数据5 | 数据6 |
+
 【输出格式示例】
 [
   {
-    "stem": "题干文本……（包含(a)(b)(c)等子问）",
+    "stem": "题干文本……（包含(a)(b)(c)等子问）\\n如需表格请使用Markdown格式",
     "options": ["A. ...", "B. ...", "C. ...", "D. ..."],
     "answer": "正确答案或要点（选择题写选项字母；简答/综合题给出关键步骤与结论，不需要长篇推理）",
     "explanation": "简要说明正确原因、关键计算/判断边界，避免长篇推理文字",
@@ -203,6 +313,15 @@ async def async_generate_section(session, section, distribution_model, examples=
             res = await resp.json()
             content = res["choices"][0]["message"]["content"]
             items = _extract_json_array(content)
+
+            # 🆕 将LLM生成的Markdown表格转换为HTML表格
+            for item in items:
+                if 'stem' in item and item['stem']:
+                    item['stem'] = _convert_markdown_table_to_html(item['stem'])
+                if 'answer' in item and item['answer']:
+                    item['answer'] = _convert_markdown_table_to_html(item['answer'])
+                if 'explanation' in item and item['explanation']:
+                    item['explanation'] = _convert_markdown_table_to_html(item['explanation'])
 
             # 超额裁剪（不足不做二次重试，保持最小改动策略）
             if expected_count is not None and len(items) > expected_count:
