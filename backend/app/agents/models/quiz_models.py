@@ -11,6 +11,18 @@ from typing import List, Dict, Optional
 
 
 # -----------------------------
+# 子问题结构
+# -----------------------------
+class SubQuestion(BaseModel):
+    """子问题的数据结构"""
+    label: str                                      # 子问标记（a/b/i/ii 等）
+    stem: str                                       # 子问题干
+    score: int = 0                                  # 子问分值
+    question_type: Optional[str] = "short_answer"   # 子问题型
+    sub_questions: List["SubQuestion"] = []         # 嵌套子问题
+
+
+# -----------------------------
 # 单道题目结构
 # -----------------------------
 class Question(BaseModel):
@@ -24,6 +36,7 @@ class Question(BaseModel):
     knowledge_points: List[str] = []                # 对应知识点
     question_type: Optional[str] = "single_choice"  # 题型：单选、简答、计算等
     tags: Optional[List[str]] = []                  # 附加标签（章节、关键词等）
+    sub_questions: List[SubQuestion] = []           # 子问题列表
 
 
 # -----------------------------
@@ -58,7 +71,7 @@ class QuestionTypeStats(BaseModel):
 
 
 # -----------------------------
-# 样例试卷结构（Agent D 输出，可选）
+# 样例试卷结构（已废弃，原 Agent D 输出，现由 Agent E 内部处理）
 # -----------------------------
 class SampleExam(BaseModel):
     """样例试卷解析结果"""

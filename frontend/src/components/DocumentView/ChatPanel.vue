@@ -330,6 +330,18 @@ const formatEnhancedMarkdown = (text) => {
   // 代码块（先处理，避免被其他规则影响）
   html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
   
+  // 处理表格（在代码块之后，避免代码块内的表格被处理）
+  html = html.replace(/\|(.+)\|\s*\n\|[\s\-|:]+\|\s*\n((?:\|.+\|\s*\n?)+)/g, (match, header, rows) => {
+    const headers = header.split('|').map(h => h.trim()).filter(h => h)
+    if (headers.length === 0) return match
+    const headerHtml = headers.map(h => `<th>${h}</th>`).join('')
+    const rowsHtml = rows.trim().split('\n').filter(row => row.trim()).map(row => {
+      const cells = row.split('|').map(c => c.trim()).filter(c => c)
+      return `<tr>${cells.map(cell => `<td>${cell}</td>`).join('')}</tr>`
+    }).join('')
+    return `<table class="markdown-table"><thead><tr>${headerHtml}</tr></thead><tbody>${rowsHtml}</tbody></table>`
+  })
+  
   // 标题（#### 到 #）
   html = html.replace(/^####\s+(.+)$/gm, '<h4>$1</h4>')
   html = html.replace(/^###\s+(.+)$/gm, '<h3>$1</h3>')
@@ -345,8 +357,8 @@ const formatEnhancedMarkdown = (text) => {
   
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim()
-    // 跳过已处理的HTML标签（标题、代码块等）
-    if (line.startsWith('<') && (line.startsWith('<h') || line.startsWith('<pre') || line.startsWith('<code'))) {
+    // 跳过已处理的HTML标签（标题、代码块、表格等）
+    if (line.startsWith('<') && (line.startsWith('<h') || line.startsWith('<pre') || line.startsWith('<code') || line.startsWith('<table'))) {
       if (inList) {
         processedLines.push(`<ul>${listItems.map(item => `<li>${item}</li>`).join('')}</ul>`)
         inList = false
@@ -391,7 +403,7 @@ const formatEnhancedMarkdown = (text) => {
   for (let i = 0; i < lines2.length; i++) {
     const line = lines2[i].trim()
     // 跳过已处理的HTML标签
-    if (line.startsWith('<') && (line.startsWith('<h') || line.startsWith('<pre') || line.startsWith('<code') || line.startsWith('<ul'))) {
+    if (line.startsWith('<') && (line.startsWith('<h') || line.startsWith('<pre') || line.startsWith('<code') || line.startsWith('<ul') || line.startsWith('<table'))) {
       if (inOrderedList) {
         processedLines2.push(`<ol>${orderedListItems.map(item => `<li>${item}</li>`).join('')}</ol>`)
         inOrderedList = false
@@ -433,10 +445,10 @@ const formatEnhancedMarkdown = (text) => {
   // 行内代码
   html = html.replace(/`([^`]+)`/g, '<code>$1</code>')
   
-  // 换行（但保留在代码块和列表中的换行）
+  // 换行（但保留在代码块、列表和表格中的换行）
   // 先标记已处理的块
   const blocks = []
-  html = html.replace(/(<pre>[\s\S]*?<\/pre>|<ul>[\s\S]*?<\/ul>|<ol>[\s\S]*?<\/ol>|<h[1-4]>.*?<\/h[1-4]>)/g, (match) => {
+  html = html.replace(/(<pre>[\s\S]*?<\/pre>|<ul>[\s\S]*?<\/ul>|<ol>[\s\S]*?<\/ol>|<h[1-4]>.*?<\/h[1-4]>|<table[\s\S]*?<\/table>)/g, (match) => {
     const id = `___BLOCK_${blocks.length}___`
     blocks.push(match)
     return id
@@ -686,6 +698,29 @@ const formatMarkdown = (text) => {
 
 .message-text :deep(ol li) {
   list-style-type: decimal;
+}
+
+.message-text :deep(table.markdown-table) {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 12px 0;
+  font-size: 14px;
+}
+
+.message-text :deep(table.markdown-table th),
+.message-text :deep(table.markdown-table td) {
+  border: 1px solid #e4e7ed;
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.message-text :deep(table.markdown-table th) {
+  background-color: #f5f7fa;
+  font-weight: 600;
+}
+
+.message-text :deep(table.markdown-table tr:nth-child(even)) {
+  background-color: #fafafa;
 }
 </style>
 

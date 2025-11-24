@@ -91,9 +91,12 @@ class GiteePaddleOCRClient:
     def _submit_task(self, file_path: Path) -> str:
         for attempt in range(self.max_retry + 1):
             fields = [
-                ("model", "PaddleOCR-VL"),
-                ("include_image", "true"),
+                ("model", "MinerU2.5"),
+                ("is_ocr", "true"),
                 ("include_image_base64", "true"),
+                ("formula_enable", "true"),
+                ("table_enable", "true"),
+                ("layout_model", "doclayout_yolo"),
                 ("output_format", "md"),
             ]
             mime = file_path.suffix.lower()
@@ -159,20 +162,23 @@ class GiteePaddleOCRClient:
 
         markdown_lines: List[str] = []
         images_meta: List[Dict[str, object]] = []
-        image_pattern = re.compile(r"data:image/(png|jpeg|jpg);base64,([^\"']+)")
+        # 匹配完整的 Markdown 图片语法: ![alt](data:image/...;base64,...)
+        image_pattern = re.compile(r"!\[([^\]]*)\]\(data:image/(png|jpeg|jpg);base64,([^)]+)\)")
 
         for seg in segments:
             content = seg.get("content", "")
             matches = list(image_pattern.finditer(content))
             for idx, match in enumerate(matches, start=1):
-                ext = match.group(1)
-                data = match.group(2)
+                alt_text = match.group(1)  # alt 文本
+                ext = match.group(2)  # 图片格式
+                data = match.group(3)  # base64 数据
                 image_bytes = base64.b64decode(data)
                 image_name = f"image_{seg.get('index', 0)}_{idx}.{ 'jpg' if ext == 'jpeg' else ext}"
                 image_path = images_dir / image_name
                 image_path.write_bytes(image_bytes)
 
-                content = content.replace(match.group(0), f"images/{image_name}")
+                # 替换为完整的 Markdown 图片语法
+                content = content.replace(match.group(0), f"![{alt_text}](images/{image_name})")
                 images_meta.append(
                     {
                         "page_number": None,

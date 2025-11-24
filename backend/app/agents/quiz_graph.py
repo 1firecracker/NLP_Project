@@ -9,7 +9,6 @@ from datetime import datetime
 from app.agents.agent_a_data_preparation import run_agent_a
 from app.agents.agent_b_knowledge_analysis import run_agent_b
 from app.agents.agent_c_type_analysis import run_agent_c
-from app.agents.agent_d_sample_parser import run_agent_d
 from app.agents.agent_e_question_generation import run_agent_e
 from app.agents.agent_f_quality_control import run_agent_f
 from app.agents.agent_g_grader import run_agent_g
@@ -25,13 +24,12 @@ class AgentGraph:
     注：G（评分）和 H（学习建议）是运行时根据学生提交触发，不在主流水线中。
     """
     def __init__(self):
-        self.nodes = ["A", "B", "C", "D", "E", "F", "G", "H"]
+        self.nodes = ["A", "B", "C", "E", "F", "G", "H"]
         self.edges = {
             "A": [],
             "B": ["A"],
             "C": ["A", "B"],
-            "D": ["A", "B", "C"],
-            "E": ["A", "B", "C", "D"],
+            "E": ["A", "B", "C"],
             "F": ["E"],
             "G": ["E"],  # G 依赖生成题库
             "H": ["G"],  # H 依赖评分结果
@@ -83,11 +81,6 @@ def run_agent_chain(conversation_id: str,
         results["C"] = run_agent_c(conversation_id)
         print("✅ Agent C 完成\n")
 
-    # D: 样例试卷解析
-    if "D" in exec_order:
-        results["D"] = run_agent_d(conversation_id, sample_files[0] if sample_files else None)
-        print("✅ Agent D 完成\n")
-
     # E: 智能出题生成
     if "E" in exec_order:
         results["E"] = run_agent_e(conversation_id)
@@ -121,9 +114,6 @@ def validate_outputs(conversation_id: str):
 
     # C：分布模型是否在内存
     checks["C"] = hasattr(shared_state, "distribution_model") and bool(shared_state.distribution_model)
-
-    # D：结构模型是否在内存
-    checks["D"] = hasattr(shared_state, "sample_structure") and bool(shared_state.sample_structure)
 
     # E：生成题库是否能从磁盘加载
     qb_e = load_question_bank(f"{conversation_id}_generated")
