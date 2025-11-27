@@ -117,67 +117,89 @@ def _extract_json_array(text: str):
     text = text.strip()
     
     def _safe_load(candidate: str):
-        fixed = (
-            candidate.replace("\\(", "\\\\(")
-            .replace("\\)", "\\\\)")
-            .replace("\\{", "\\\\{")
-            .replace("\\}", "\\\\}")
-        )
+        """处理 LaTeX 转义字符"""
+        fixed = candidate
+        # 修复 LaTeX 中常见的非法 JSON 转义
+        latex_escapes = [
+            (r'\{', r'\\{'),
+            (r'\}', r'\\}'),
+            (r'\(', r'\\('),
+            (r'\)', r'\\)'),
+            (r'\[', r'\\['),
+            (r'\]', r'\\]'),
+            (r'\_', r'\\_'),
+            (r'\^', r'\\^'),
+            (r'\&', r'\\&'),
+            (r'\%', r'\\%'),
+            (r'\$', r'\\$'),
+            (r'\#', r'\\#'),
+        ]
+        for old, new in latex_escapes:
+            fixed = re.sub(r'(?<!\\)' + re.escape(old), new, fixed)
         return json.loads(fixed)
 
-    # 1. 尝试直接解析整个文本
+    def _find_balanced_json_array(s: str, start_pos: int = 0) -> str:
+        """使用括号匹配找到完整的 JSON 数组"""
+        arr_start = s.find('[', start_pos)
+        if arr_start == -1:
+            return None
+        
+        bracket_count = 0
+        in_string = False
+        escape_next = False
+        
+        for i in range(arr_start, len(s)):
+            char = s[i]
+            
+            if escape_next:
+                escape_next = False
+                continue
+            
+            if char == '\\':
+                escape_next = True
+                continue
+            
+            if char == '"':
+                in_string = not in_string
+                continue
+            
+            if not in_string:
+                if char == '[':
+                    bracket_count += 1
+                elif char == ']':
+                    bracket_count -= 1
+                    if bracket_count == 0:
+                        return s[arr_start:i+1]
+        
+        return None
+
+    # 1. 先去除 ```json ... ``` 代码块标记
+    code_block_match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', text)
+    if code_block_match:
+        text = code_block_match.group(1).strip()
+        print(f"[📝 检测到代码块，已提取内容]")
+
+    # 2. 尝试直接解析整个文本
     if text.startswith('['):
         try:
             return _safe_load(text)
-        except json.JSONDecodeError:
-            pass
+        except json.JSONDecodeError as e:
+            print(f"[⚠️ 直接解析失败] {e}")
     
-    # 2. 尝试提取 ```json ... ``` 或 ``` ... ``` 代码块
-    code_block_match = re.search(r'```(?:json)?\s*(\[[\s\S]*?\])\s*```', text)
-    if code_block_match:
+    # 3. 使用括号匹配找到完整的 JSON 数组
+    json_str = _find_balanced_json_array(text)
+    if json_str:
         try:
-            return _safe_load(code_block_match.group(1))
-        except json.JSONDecodeError:
-            pass
-    
-    # 3. 尝试提取第一个完整的 JSON 数组（支持嵌套）
-    # 使用栈匹配括号，找到完整的 [ ... ] 结构
-    start_idx = text.find('[')
-    if start_idx == -1:
-        return []
-    
-    bracket_count = 0
-    in_string = False
-    escape_next = False
-    
-    for i in range(start_idx, len(text)):
-        char = text[i]
-        
-        if escape_next:
-            escape_next = False
-            continue
-        
-        if char == '\\':
-            escape_next = True
-            continue
-        
-        if char == '"':
-            in_string = not in_string
-            continue
-        
-        if not in_string:
-            if char == '[':
-                bracket_count += 1
-            elif char == ']':
-                bracket_count -= 1
-                if bracket_count == 0:
-                    # 找到完整数组
-                    json_str = text[start_idx:i+1]
-                    try:
-                        return _safe_load(json_str)
-                    except json.JSONDecodeError:
-                        pass
-                    break
+            return _safe_load(json_str)
+        except json.JSONDecodeError as e:
+            print(f"[⚠️ JSON 解析失败] {e}")
+            # 尝试修复尾部逗号
+            try:
+                fixed = re.sub(r',\s*}', '}', json_str)
+                fixed = re.sub(r',\s*]', ']', fixed)
+                return _safe_load(fixed)
+            except:
+                pass
     
     return []
 
