@@ -112,7 +112,7 @@ jobs:
         # 创建 .env 文件
         cat > /opt/lightrag-web/backend/.env << ENVEOF
         LLM_BINDING=openai
-        LLM_MODEL=deepseek-ai/DeepSeek-R1-0528-Qwen3-8B
+        LLM_MODEL=Pro/deepseek-ai/DeepSeek-V3.2-Exp
         LLM_BINDING_API_KEY=${LLM_API_KEY}
         LLM_BINDING_HOST=https://api.siliconflow.cn/v1
         EMBEDDING_BINDING=siliconcloud
