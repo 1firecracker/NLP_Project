@@ -298,7 +298,7 @@ const messages = computed(() => {
     if (msg.role === 'tool') return false
     return hasValidContent(msg)
   })
-  console.log(`🔄 [前端] 消息列表计算: 原始消息数=${allMessages.length}, 过滤后消息数=${filteredMessages.length}`)
+  // console.log(`🔄 [前端] 消息列表计算: 原始消息数=${allMessages.length}, 过滤后消息数=${filteredMessages.length}`)
   return filteredMessages
 })
 
@@ -560,7 +560,7 @@ const handleSend = async () => {
           // 不抛出异常，让流式处理正常结束
         } else if (chunk.type === 'response') {
           // Agent 模式的正常响应
-          console.log('📥 [前端] 收到 response 事件:', chunk.content)
+          // console.log('📥 [前端] 收到 response 事件:', chunk.content)
           // Agent 模式使用 streamItems 显示，不需要添加到 currentStreamContent（避免重复）
           // 追加到最后一个文本项或创建新项
           const lastItem = streamItems.value[streamItems.value.length - 1]

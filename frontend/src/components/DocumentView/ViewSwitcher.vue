@@ -60,7 +60,6 @@
       <div v-if="viewMode === 'mindmap'" class="mindmap-view">
         <MindMapViewer 
           v-if="convStore.currentConversationId" 
-          :key="`mindmap-${convStore.currentConversationId}-${viewMode}`"
         />
         <el-empty
           v-else

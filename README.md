@@ -101,43 +101,19 @@ cd backend
 Copy-Item .env.example .env
 ```
 
-然后编辑 `.env` 文件，填入真实的 API Key：
+然后编辑 `.env` 文件，填入 Gitee OCR Token：
 
 ```env
-# ==================== LLM 配置（必需）====================
-LLM_BINDING=openai
-LLM_MODEL=deepseek-ai/DeepSeek-R1-0528-Qwen3-8B
-LLM_BINDING_API_KEY=your-api-key-here  # 必需：LLM API Key
-LLM_BINDING_HOST=https://api.siliconflow.cn/v1
-
-# ==================== Embedding 配置 ====================
-EMBEDDING_BINDING=siliconcloud
-EMBEDDING_MODEL=Qwen/Qwen3-Embedding-0.6B
-EMBEDDING_DIM=1024
-EMBEDDING_BINDING_HOST=http://localhost:11434
-
 # ==================== Gitee OCR 配置（必需）====================
 # 默认启用 Gitee OCR 进行 PDF 解析，需要配置 Token
 ENABLE_GITEE_OCR=true
 GITEE_OCR_TOKEN=your-gitee-ocr-token-here  # 必需：Gitee OCR Token
 # 获取方式：https://ai.gitee.com/serverless-api?model=PaddleOCR-VL
-
-# ==================== 其他配置（可选，有默认值）====================
-MAX_ASYNC=2=16
-TIMEOUT=400
-IMAGE_RESOLUTION=150
-MAX_FILE_SIZE=52428800
-MAX_FILES_PER_CONVERSATION=20
-GITEE_OCR_TIMEOUT=30
-GITEE_OCR_MAX_RETRY=2
-GITEE_OCR_POLL_INTERVAL=5
-GITEE_OCR_MAX_WAIT=60
-
+每日免费100页解析
 ```
 
 **必需配置项**：
-1. **`LLM_BINDING_API_KEY`** - LLM API Key（用于智能对话和知识抽取）
-2. **`GITEE_OCR_TOKEN`** - Gitee OCR Token（用于 PDF 解析，默认启用 Gitee OCR）
+- **`GITEE_OCR_TOKEN`** - Gitee OCR Token（用于 PDF 解析，默认启用 Gitee OCR）
 
 **获取 Gitee OCR Token**（免费额度：每日100页）：
 1. 访问 [Gitee AI 模型广场](https://ai.gitee.com/serverless-api?model=PaddleOCR-VL)
@@ -149,27 +125,32 @@ GITEE_OCR_MAX_WAIT=60
 
 **注意**：
 - `.env` 文件不会被提交到 Git（已在 `.gitignore` 中）
-- 如果未配置必需的 API Key，应用将无法正常启动
 - 如果未配置 `GITEE_OCR_TOKEN`，PDF 解析会失败并回退到本地解析（PyMuPDF/pdfplumber）
-- 参考 `backend/.env.example` 查看所有可配置项
 
-## 部署到生产环境
+### 5. LLM 配置（通过前端界面）
 
-### AWS EC2 部署
+**重要**：LLM API Key 和模型配置通过前端界面进行管理，无需在 `.env` 文件中配置。
 
-**详细部署指南请参考**: [`部署.md`](部署.md)
+启动应用后，点击右上角的 **设置按钮**（⚙️），可以分别配置：
 
-**快速步骤**:
-1. 创建 EC2 实例（t3.small 或更高）
-2. 配置 GitHub Secrets（必需）:
-   - `LLM_BINDING_API_KEY` - LLM API Key
-   - `GITEE_OCR_TOKEN` - Gitee OCR Token（默认启用 Gitee OCR）
-   - `EC2_INSTANCE_IP` - EC2 实例公网 IP
-   - `EC2_SSH_KEY` - SSH 私钥
-3. 推送到 `main` 分支触发自动部署
-4. 配置 systemd 服务和 Nginx
+1. **知识图谱抽取**：用于文档知识抽取和知识图谱构建
+2. **聊天对话**：用于智能问答和 Agent 模式
+3. **思维导图生成**：用于生成思维导图
 
-**注意**：如果未配置 `GITEE_OCR_TOKEN`，部署时会使用默认值（空），PDF 解析会回退到本地解析。
+每个场景可以独立配置：
+- **服务商**：目前支持硅基流动（https://siliconflow.cn/）
+- **模型**：选择对应的模型（如 DeepSeek-V3.2-Exp、Qwen2.5-VL-7B-Instruct 等）
+- **API Key**：输入对应的 API Key（加密存储，不会明文保存）
+
+**配置特点**：
+- ✅ **加密存储**：API Key 使用 Fernet 对称加密存储，不会明文保存
+- ✅ **立即生效**：配置更新后立即生效，无需重启服务
+- ✅ **独立配置**：三个场景的配置完全独立，可以使用不同的模型和 API Key
+- ✅ **安全可靠**：配置文件存储在 `backend/data/llm_config.json`，已加入 `.gitignore`，不会被提交到版本控制
+
+**首次使用**：
+- 如果未配置 LLM API Key，系统会提示错误
+- 请先获取硅基流动的 API Key，然后通过前端设置界面进行配置
 
 ---
 

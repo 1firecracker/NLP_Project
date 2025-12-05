@@ -37,7 +37,7 @@ export const useChatStore = defineStore('chat', () => {
     try {
       const history = await chatService.getHistory(conversationId)
       const loadedMessages = history.messages || []
-      console.log(`📥 [前端] 加载消息历史，对话ID: ${conversationId}，共 ${loadedMessages.length} 条消息`)
+      // console.log(`📥 [前端] 加载消息历史，对话ID: ${conversationId}，共 ${loadedMessages.length} 条消息`)
       
       // 处理历史消息，修复 pending 状态的工具调用
       // 如果工具调用已经保存到历史，说明已经执行完成，应该将 pending 状态改为 success 或 error
@@ -55,15 +55,15 @@ export const useChatStore = defineStore('chat', () => {
                 // 如果已经有结果，说明执行成功了；如果有错误信息，说明执行失败了
                 if (item.result) {
                   item.status = 'success'
-                  console.log(`🔧 [前端] 修复工具调用状态: ${item.toolName} ${item.status || '缺失'} -> success (已有结果)`)
+                  // console.log(`🔧 [前端] 修复工具调用状态: ${item.toolName} ${item.status || '缺失'} -> success (已有结果)`)
                 } else if (item.errorMessage) {
                   item.status = 'error'
-                  console.log(`🔧 [前端] 修复工具调用状态: ${item.toolName} ${item.status || '缺失'} -> error (有错误信息)`)
+                  // console.log(`🔧 [前端] 修复工具调用状态: ${item.toolName} ${item.status || '缺失'} -> error (有错误信息)`)
                 } else {
                   // 如果既没有结果也没有错误信息，但状态是 pending 或缺失，说明可能还在执行中
                   // 但既然已经保存到历史，说明已经执行完成了，默认改为 success
                   item.status = 'success'
-                  console.log(`🔧 [前端] 修复工具调用状态: ${item.toolName} ${item.status || '缺失'} -> success (默认，已保存到历史)`)
+                  // console.log(`🔧 [前端] 修复工具调用状态: ${item.toolName} ${item.status || '缺失'} -> success (默认，已保存到历史)`)
                 }
               }
             }
@@ -81,15 +81,15 @@ export const useChatStore = defineStore('chat', () => {
               // 如果已经有结果，说明执行成功了；如果有错误信息，说明执行失败了
               if (tc.result) {
                 tc.status = 'success'
-                console.log(`🔧 [前端] 修复工具调用状态: ${tc.toolName} ${tc.status || '缺失'} -> success (已有结果)`)
+                // console.log(`🔧 [前端] 修复工具调用状态: ${tc.toolName} ${tc.status || '缺失'} -> success (已有结果)`)
               } else if (tc.errorMessage) {
                 tc.status = 'error'
-                console.log(`🔧 [前端] 修复工具调用状态: ${tc.toolName} ${tc.status || '缺失'} -> error (有错误信息)`)
+                // console.log(`🔧 [前端] 修复工具调用状态: ${tc.toolName} ${tc.status || '缺失'} -> error (有错误信息)`)
               } else {
                 // 如果既没有结果也没有错误信息，但状态是 pending 或缺失，说明可能还在执行中
                 // 但既然已经保存到历史，说明已经执行完成了，默认改为 success
                 tc.status = 'success'
-                console.log(`🔧 [前端] 修复工具调用状态: ${tc.toolName} ${tc.status || '缺失'} -> success (默认，已保存到历史)`)
+                // console.log(`🔧 [前端] 修复工具调用状态: ${tc.toolName} ${tc.status || '缺失'} -> success (默认，已保存到历史)`)
               }
             }
             return tc
@@ -105,11 +105,11 @@ export const useChatStore = defineStore('chat', () => {
         const role = msg.role || 'unknown'
         roleCounts[role] = (roleCounts[role] || 0) + 1
       })
-      console.log(`📊 [前端] 消息类型统计:`, roleCounts)
+      // console.log(`📊 [前端] 消息类型统计:`, roleCounts)
       
       // 打印前几条消息的详细信息（用于调试）
       processedMessages.slice(0, 5).forEach((msg, index) => {
-        console.log(`📝 [前端] 消息 ${index + 1}: role="${msg.role}", content长度=${msg.content ? msg.content.length : 0}, hasStreamItems=${!!msg.streamItems}, hasToolCalls=${!!msg.toolCalls}`)
+        // console.log(`📝 [前端] 消息 ${index + 1}: role="${msg.role}", content长度=${msg.content ? msg.content.length : 0}, hasStreamItems=${!!msg.streamItems}, hasToolCalls=${!!msg.toolCalls}`)
       })
       
       messages.value[conversationId] = processedMessages

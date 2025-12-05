@@ -315,9 +315,9 @@ onMounted(async () => {
   // 加载知识图谱实体数据（用于Canvas实体高亮）
   if (props.conversationId) {
     try {
-      console.log('📊 加载知识图谱实体数据...')
+      // console.log('📊 加载知识图谱实体数据...')
       await graphStore.loadGraph(props.conversationId)
-      console.log('✅ 实体数据加载完成，实体数:', graphStore.entities.length)
+      // console.log('✅ 实体数据加载完成，实体数:', graphStore.entities.length)
       if (graphStore.entities.length > 0) {
         console.log('实体示例:', graphStore.entities[0])
       }

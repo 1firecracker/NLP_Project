@@ -75,7 +75,7 @@ class ChatService {
               onChunk({ type: 'warning', content: parsed.warning })
             } else if (parsed.tool_call) {
               // Agent 模式的工具调用开始
-              console.log('📥 [前端] 收到 tool_call 事件:', parsed.tool_call)
+              // console.log('📥 [前端] 收到 tool_call 事件:', parsed.tool_call)
               onChunk({ type: 'tool_call', tool_call: parsed.tool_call })
             } else if (parsed.tool_result) {
               // Agent 模式的工具执行结果

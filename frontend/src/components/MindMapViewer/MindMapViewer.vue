@@ -10,6 +10,15 @@
         </div>
         <div class="header-right">
           <el-button 
+            :icon="Expand" 
+            circle 
+            plain 
+            size="small" 
+            @click="handleExpandAll"
+            :disabled="!markmapInstance || !mindmapStore.hasMindMap"
+            title="全部展开"
+          />
+          <el-button 
             :icon="Refresh" 
             circle 
             plain 
@@ -95,7 +104,7 @@
 
 <script setup>
 import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
-import { Refresh, FullScreen, Loading } from '@element-plus/icons-vue'
+import { Refresh, FullScreen, Loading, Expand } from '@element-plus/icons-vue'
 import { useMindMapStore } from '../../stores/mindmapStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useDocumentStore } from '../../stores/documentStore'
@@ -113,7 +122,7 @@ const fullscreenContainer = ref(null)
 const fullscreenVisible = ref(false)
 const generationProgress = ref(0)
 
-let markmapInstance = null
+const markmapInstance = ref(null)
 let fullscreenMarkmapInstance = null
 let renderDebounceTimer = null // 防抖定时器
 let renderRAFId = null // requestAnimationFrame ID
@@ -242,7 +251,7 @@ const renderMindMap = async (container, content) => {
     }
     
     if (container === mindmapContainer.value) {
-      if (!markmapInstance) {
+      if (!markmapInstance.value) {
         console.log('🆕 创建新的 markmap 实例（主容器）')
         // 确保容器是空的
         container.innerHTML = ''
@@ -253,9 +262,9 @@ const renderMindMap = async (container, content) => {
         svgElement.style.display = 'block'
         container.appendChild(svgElement)
         // 使用 SVG 元素创建实例
-        markmapInstance = Markmap.create(svgElement, options)
+        markmapInstance.value = Markmap.create(svgElement, options)
       }
-      instance = markmapInstance
+      instance = markmapInstance.value
     } else if (container === fullscreenContainer.value) {
       if (!fullscreenMarkmapInstance) {
         console.log('🆕 创建新的 markmap 实例（全屏容器）')
@@ -330,16 +339,16 @@ const renderMindMap = async (container, content) => {
         
         if (container === mindmapContainer.value) {
           // 如果实例已存在，先销毁
-          if (markmapInstance) {
+          if (markmapInstance.value) {
             try {
-              markmapInstance.destroy?.()
+              markmapInstance.value.destroy?.()
             } catch (e) {
               console.warn('销毁旧实例失败:', e)
             }
           }
           // 使用 SVG 元素创建实例
-          markmapInstance = Markmap.create(svgElement, options)
-          instance = markmapInstance
+          markmapInstance.value = Markmap.create(svgElement, options)
+          instance = markmapInstance.value
         } else if (container === fullscreenContainer.value) {
           // 如果实例已存在，先销毁
           if (fullscreenMarkmapInstance) {
@@ -450,7 +459,7 @@ watch(() => mindmapStore.mindmapContent, async (newContent, oldContent) => {
       fullscreenContainer.value.innerHTML = ''
     }
     // 重置实例
-    markmapInstance = null
+    markmapInstance.value = null
     fullscreenMarkmapInstance = null
   }
 }, { immediate: true })
@@ -474,8 +483,8 @@ watch(() => convStore.currentConversationId, async (newId, oldId) => {
   } else {
     mindmapStore.clearMindMap()
     // 清空实例
-    if (markmapInstance) {
-      markmapInstance = null
+    if (markmapInstance.value) {
+      markmapInstance.value = null
     }
     if (fullscreenMarkmapInstance) {
       fullscreenMarkmapInstance = null
@@ -616,8 +625,8 @@ const handleRefresh = async () => {
   if (mindmapContainer.value) {
     try {
       // 尝试销毁旧的 markmap 实例
-      if (markmapInstance && typeof markmapInstance.destroy === 'function') {
-        markmapInstance.destroy()
+      if (markmapInstance.value && typeof markmapInstance.value.destroy === 'function') {
+        markmapInstance.value.destroy()
       }
     } catch (e) {
       console.warn('销毁旧 Markmap 实例时出错（忽略）：', e)
@@ -625,7 +634,7 @@ const handleRefresh = async () => {
     // 清空容器中的 SVG 和其他内容
     mindmapContainer.value.innerHTML = ''
     // 重置实例引用
-    markmapInstance = null
+    markmapInstance.value = null
   }
 
   if (convStore.currentConversationId) {
@@ -652,6 +661,60 @@ const handleRefresh = async () => {
     }
   } else {
     console.warn('⚠️ 刷新时没有对话ID')
+  }
+}
+
+// 全部展开
+const handleExpandAll = () => {
+  if (!markmapInstance.value || !mindmapStore.mindmapContent) {
+    console.warn('⚠️ markmap 实例或内容不存在，无法展开')
+    return
+  }
+  
+  try {
+    // 直接从 markdown 内容重新解析，确保获取最新数据
+    const transformer = getTransformer()
+    if (!transformer) {
+      console.warn('⚠️ Transformer 不可用')
+      return
+    }
+    
+    const result = transformer.transform(mindmapStore.mindmapContent)
+    let root = result.root
+    
+    if (!root) {
+      console.warn('⚠️ 无法解析 markdown 数据')
+      return
+    }
+    
+    // 递归展开所有节点
+    const expandNode = (node) => {
+      if (node && typeof node === 'object') {
+        // 设置节点状态为展开（collapsed: false 表示展开）
+        if (!node.state) {
+          node.state = {}
+        }
+        node.state.collapsed = false
+        
+        // 递归处理子节点
+        if (node.children && Array.isArray(node.children)) {
+          node.children.forEach(expandNode)
+        }
+      }
+    }
+    
+    // 展开根节点及其所有子节点
+    expandNode(root)
+    
+    // 更新数据以应用展开状态
+    markmapInstance.value.setData(root)
+    if (typeof markmapInstance.value.fit === 'function') {
+      markmapInstance.value.fit()
+    }
+    
+    console.log('✅ 已展开所有节点')
+  } catch (error) {
+    console.error('❌ 展开所有节点失败:', error)
   }
 }
 
@@ -697,8 +760,8 @@ onMounted(async () => {
 
 // 组件卸载
 onUnmounted(() => {
-  if (markmapInstance) {
-    markmapInstance = null
+  if (markmapInstance.value) {
+    markmapInstance.value = null
   }
   if (fullscreenMarkmapInstance) {
     fullscreenMarkmapInstance = null
