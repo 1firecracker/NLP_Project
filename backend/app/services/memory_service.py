@@ -49,10 +49,16 @@ class MemoryService:
         recent_messages = messages[-(max_turns * 2):] if len(messages) > max_turns * 2 else messages
         
         # 转换为 LightRAG 需要的格式，并对长消息进行截断
+        # 注意：过滤掉 tool 角色的消息，因为 OpenAI API 不支持 tool 角色（除非在 function calling 流程中）
         history = []
         for msg in recent_messages:
             role = msg.get("role", "")
             content = msg.get("content", "")
+            
+            # 只保留 user 和 assistant 角色的消息，过滤掉 tool 角色
+            if role not in ["user", "assistant"]:
+                continue
+            
             if role and content:
                 # 如果消息太长，进行截断
                 if max_tokens_per_message > 0:

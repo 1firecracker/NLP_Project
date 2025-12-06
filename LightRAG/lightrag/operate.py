@@ -2424,6 +2424,7 @@ async def kg_query(
         # Apply higher priority (5) to query relation LLM function
         use_model_func = partial(use_model_func, _priority=5)
 
+    #  这里其实是调用 llm 对关键词 进行提取 , 同时使用 缓存kv_store_llm_response_cache.json 防止重复提取降低api消耗
     hl_keywords, ll_keywords = await get_keywords_from_query(
         query, query_param, global_config, hashing_kv
     )
