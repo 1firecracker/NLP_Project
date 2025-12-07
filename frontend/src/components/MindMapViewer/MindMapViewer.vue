@@ -16,8 +16,10 @@
             size="small" 
             @click="handleExpandAll"
             :disabled="!markmapInstance || !mindmapStore.hasMindMap"
-            title="全部展开"
-          />
+            :title="expandMode === 'all' ? '恢复初始状态' : '全部展开'"
+          >
+            <!-- {{ expandMode === 'all' ? '恢复' : '展开' }} -->
+          </el-button>
           <el-button 
             :icon="Refresh" 
             circle 
@@ -27,6 +29,23 @@
             :loading="mindmapStore.loading"
             title="刷新脑图"
           />
+          <el-dropdown @command="handleExport" trigger="click">
+            <el-button 
+              circle 
+              plain 
+              size="small" 
+              title="导出思维脑图"
+            >
+              <el-icon><Download /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="png">导出为 PNG</el-dropdown-item>
+                <el-dropdown-item command="svg">导出为 SVG</el-dropdown-item>
+                <el-dropdown-item command="xmind">导出为 XMind</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
           <el-button 
             :icon="FullScreen" 
             circle 
@@ -104,7 +123,7 @@
 
 <script setup>
 import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
-import { Refresh, FullScreen, Loading, Expand } from '@element-plus/icons-vue'
+import { Refresh, FullScreen, Loading, Expand, Download } from '@element-plus/icons-vue'
 import { useMindMapStore } from '../../stores/mindmapStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useDocumentStore } from '../../stores/documentStore'
@@ -112,6 +131,7 @@ import { useDocumentStore } from '../../stores/documentStore'
 // 导入 markmap（使用标准 ES6 import）
 import { Markmap } from 'markmap-view'
 import { Transformer } from 'markmap-lib'
+import html2canvas from 'html2canvas'
 
 const mindmapStore = useMindMapStore()
 const convStore = useConversationStore()
@@ -126,7 +146,9 @@ const markmapInstance = ref(null)
 let fullscreenMarkmapInstance = null
 let renderDebounceTimer = null // 防抖定时器
 let renderRAFId = null // requestAnimationFrame ID
+let skipNextRender = false // 展开后跳过一次自动渲染，避免覆盖展开状态
 const processingDocs = new Set() // 记录正在流式生成的文档ID，避免重复调用
+const expandMode = ref('default') // default: 按 initialExpandLevel, all: 全部展开
 
 // 初始化 transformer
 let transformer = null
@@ -247,7 +269,8 @@ const renderMindMap = async (container, content) => {
       },
       duration: 300,
       maxWidth: 300,
-      initialExpandLevel: 4, // 默认展开到第 2 层，更深层级默认折叠
+      // default 模式按既定层级展开，all 模式全展开
+      initialExpandLevel: expandMode.value === 'all' ? Infinity : 4,
     }
     
     if (container === mindmapContainer.value) {
@@ -396,6 +419,11 @@ const renderMindMap = async (container, content) => {
 
 // 监听思维脑图内容变化（使用防抖 + requestAnimationFrame，支持流式更新）
 watch(() => mindmapStore.mindmapContent, async (newContent, oldContent) => {
+  // 若刚执行完“全部展开”，跳过一次自动渲染，防止覆盖展开状态
+  if (skipNextRender) {
+    skipNextRender = false
+    return
+  }
   if (newContent && newContent.trim()) {
     // 清除之前的定时器和 RAF
     if (renderDebounceTimer) {
@@ -664,58 +692,237 @@ const handleRefresh = async () => {
   }
 }
 
-// 全部展开
+// 全部展开 / 恢复初始状态（切换模式）
 const handleExpandAll = () => {
   if (!markmapInstance.value || !mindmapStore.mindmapContent) {
-    console.warn('⚠️ markmap 实例或内容不存在，无法展开')
+    console.warn('⚠️ markmap 实例或内容不存在，无法切换模式')
     return
   }
   
-  try {
-    // 直接从 markdown 内容重新解析，确保获取最新数据
-    const transformer = getTransformer()
-    if (!transformer) {
-      console.warn('⚠️ Transformer 不可用')
+  // 切换模式：all <-> default
+  const newMode = expandMode.value === 'all' ? 'default' : 'all'
+  expandMode.value = newMode
+  skipNextRender = true // 避免下一次自动渲染覆盖
+  
+  // 销毁旧实例，强制重新创建以应用新的 initialExpandLevel
+  if (markmapInstance.value) {
+    try {
+      if (typeof markmapInstance.value.destroy === 'function') {
+        markmapInstance.value.destroy()
+      }
+    } catch (e) {
+      console.warn('销毁旧实例失败:', e)
+    }
+    markmapInstance.value = null
+  }
+  
+  // 清空容器，准备重新创建
+  if (mindmapContainer.value) {
+    mindmapContainer.value.innerHTML = ''
+  }
+  
+  // 重新渲染，此时会创建新实例并应用对应的 initialExpandLevel
+  renderMindMap(mindmapContainer.value, mindmapStore.mindmapContent)
+  console.log(`✅ 已切换为${newMode === 'all' ? '全展开' : '初始'}模式，实例已重新创建`)
+}
+
+// 导出思维脑图
+const handleExport = async (format) => {
+  if (!markmapInstance.value || !mindmapContainer.value) {
+    console.warn('⚠️ markmap 实例或容器不存在，无法导出')
+    return
+  }
+  
+  const svgElement = mindmapContainer.value.querySelector('svg')
+  if (!svgElement) {
+    console.warn('⚠️ 未找到 SVG 元素，无法导出')
+    return
+  }
+  
+  const conversationId = convStore.currentConversationId || 'mindmap'
+  const timestamp = new Date().toISOString().split('T')[0]
+  const filename = `思维脑图_${conversationId}_${timestamp}`
+  
+  if (format === 'svg') {
+    // 导出 SVG
+    const svgData = new XMLSerializer().serializeToString(svgElement)
+    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' })
+    const url = URL.createObjectURL(svgBlob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${filename}.svg`
+    link.click()
+    URL.revokeObjectURL(url)
+    console.log('✅ SVG 导出成功')
+  } else if (format === 'png') {
+    // 导出 PNG - 使用 html2canvas 提高清晰度和兼容性
+    const container = mindmapContainer.value
+    
+    if (!container) {
+      console.error('❌ 容器不存在，无法导出')
       return
     }
     
-    const result = transformer.transform(mindmapStore.mindmapContent)
-    let root = result.root
-    
-    if (!root) {
-      console.warn('⚠️ 无法解析 markdown 数据')
-      return
-    }
-    
-    // 递归展开所有节点
-    const expandNode = (node) => {
-      if (node && typeof node === 'object') {
-        // 设置节点状态为展开（collapsed: false 表示展开）
-        if (!node.state) {
-          node.state = {}
+    // 使用 html2canvas 捕获整个容器（包括 SVG）
+    html2canvas(container, {
+      backgroundColor: '#ffffff', // 白色背景
+      scale: 5, // 5倍缩放，提高清晰度（可根据需要调整，最高建议 4-5）
+      useCORS: true, // 允许跨域资源
+      logging: false, // 关闭日志
+      width: container.scrollWidth,
+      height: container.scrollHeight,
+      windowWidth: container.scrollWidth,
+      windowHeight: container.scrollHeight,
+    }).then((canvas) => {
+      // 将 Canvas 转换为 Blob 并下载
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const url = URL.createObjectURL(blob)
+          const link = document.createElement('a')
+          link.href = url
+          link.download = `${filename}.png`
+          link.click()
+          URL.revokeObjectURL(url)
+          console.log('✅ PNG 导出成功（使用 html2canvas）')
+        } else {
+          console.error('❌ PNG 导出失败：无法生成 blob')
+          alert('PNG 导出失败，请尝试导出为 SVG 格式')
         }
-        node.state.collapsed = false
-        
-        // 递归处理子节点
-        if (node.children && Array.isArray(node.children)) {
-          node.children.forEach(expandNode)
-        }
+      }, 'image/png', 1.0) // 最高质量
+    }).catch((error) => {
+      console.error('❌ PNG 导出失败:', error)
+      // 如果 html2canvas 失败，回退到 SVG 导出
+      alert('PNG 导出失败，已自动导出为 SVG 格式')
+      handleExport('svg')
+    })
+  } else if (format === 'xmind') {
+    // 导出 XMind（需要 jszip 库）
+    try {
+      // 动态导入 jszip（如果已安装）
+      const JSZip = (await import('jszip')).default
+      
+      // 将 markdown 转换为 XMind XML 格式
+      const transformer = getTransformer()
+      if (!transformer) {
+        console.error('❌ Transformer 不可用')
+        return
+      }
+      
+      const result = transformer.transform(mindmapStore.mindmapContent)
+      const root = result.root
+      
+      if (!root) {
+        console.error('❌ 无法解析思维脑图数据')
+        return
+      }
+      
+      // 生成 XMind XML
+      const xmindXml = generateXMindXML(root, filename)
+      
+      // 创建 XMind 文件结构（ZIP 格式）
+      const zip = new JSZip()
+      zip.file('content.xml', xmindXml)
+      zip.file('META-INF/manifest.xml', generateManifestXML())
+      
+      // 生成 ZIP 文件并下载
+      const blob = await zip.generateAsync({ type: 'blob' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${filename}.xmind`
+      link.click()
+      URL.revokeObjectURL(url)
+      console.log('✅ XMind 导出成功')
+    } catch (error) {
+      if (error.message && error.message.includes('jszip')) {
+        console.error('❌ XMind 导出失败：请先安装 jszip 库')
+        console.log('💡 安装命令：npm install jszip')
+        alert('XMind 导出需要安装 jszip 库，请运行：npm install jszip')
+      } else {
+        console.error('❌ XMind 导出失败:', error)
       }
     }
+  }
+}
+
+// 解码 HTML 实体编码
+const decodeHtmlEntity = (text) => {
+  if (!text) return ''
+  const textarea = document.createElement('textarea')
+  textarea.innerHTML = String(text)
+  return textarea.value
+}
+
+// 生成 XMind XML 内容
+const generateXMindXML = (root, title) => {
+  const convertNode = (node, depth = 0) => {
+    // 先解码 HTML 实体，然后转义 XML 特殊字符
+    let content = node.content || ''
+    content = decodeHtmlEntity(content) // 解码 HTML 实体（如 &#x6587; -> 文）
+    const children = node.children || []
     
-    // 展开根节点及其所有子节点
-    expandNode(root)
+    let xml = `<topic id="${Date.now()}-${Math.random()}">`
+    // 使用 CDATA 包装文本，避免 XML 转义问题
+    xml += `<title><![CDATA[${content}]]></title>`
     
-    // 更新数据以应用展开状态
-    markmapInstance.value.setData(root)
-    if (typeof markmapInstance.value.fit === 'function') {
-      markmapInstance.value.fit()
+    if (children.length > 0) {
+      xml += '<children><topics type="attached">'
+      children.forEach(child => {
+        xml += convertNode(child, depth + 1)
+      })
+      xml += '</topics></children>'
     }
     
-    console.log('✅ 已展开所有节点')
-  } catch (error) {
-    console.error('❌ 展开所有节点失败:', error)
+    xml += '</topic>'
+    return xml
   }
+  
+  // 先解码 HTML 实体，然后转义 XML 特殊字符
+  let rootContent = root.content || title
+  rootContent = decodeHtmlEntity(rootContent) // 解码 HTML 实体
+  const rootChildren = root.children || []
+  
+  let xml = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>'
+  xml += '<xmap-content xmlns="urn:xmind:xmap:xmlns:content:2.0" xmlns:fo="http://www.w3.org/1999/XSL/Format" xmlns:xhtml="http://www.w3.org/1999/xhtml" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="2.0" xsi:schemaLocation="urn:xmind:xmap:xmlns:content:2.0 content.xsd">'
+  xml += '<sheet id="root">'
+  xml += '<topic id="root-topic">'
+  // 使用 CDATA 包装文本，避免 XML 转义问题
+  xml += `<title><![CDATA[${rootContent}]]></title>`
+  
+  if (rootChildren.length > 0) {
+    xml += '<children><topics type="attached">'
+    rootChildren.forEach(child => {
+      xml += convertNode(child)
+    })
+    xml += '</topics></children>'
+  }
+  
+  xml += '</topic>'
+  xml += '</sheet>'
+  xml += '</xmap-content>'
+  
+  return xml
+}
+
+// 生成 XMind manifest.xml
+const generateManifestXML = () => {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<manifest xmlns="urn:xmind:xmap:xmlns:manifest:1.0">
+  <file-entry full-path="content.xml" media-type="text/xml"/>
+  <file-entry full-path="META-INF/" media-type=""/>
+  <file-entry full-path="META-INF/manifest.xml" media-type="text/xml"/>
+</manifest>`
+}
+
+// XML 转义
+const escapeXml = (text) => {
+  if (!text) return ''
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
 }
 
 // 全屏

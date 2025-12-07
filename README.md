@@ -244,7 +244,7 @@ npm run dev
   - 自动生成多种题型（选择题、简答题、计算题等）
   - 知识点覆盖度分析
 
-### 4. 智能批改
+### 5. 智能批改
 
 - **学生答卷处理**
   - 支持 PDF/DOCX/TXT 格式答卷上传
@@ -322,6 +322,8 @@ npm run dev
 - **Pinia** - 现代化状态管理
 - **Vue Router** - 单页应用路由管理
 - **Cytoscape.js** - 知识图谱可视化引擎
+- **Markmap** - 思维导图可视化引擎（markmap-view, markmap-lib）
+- **JSZip** - ZIP 文件生成库（用于 XMind 导出）
 - **Axios** - HTTP 客户端库
 - **Vite** - 快速的前端构建工具
 

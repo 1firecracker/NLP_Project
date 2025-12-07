@@ -5,4 +5,3 @@ alwaysApply: true
 2. before execute operation , you need to ask more information for details
 3. make the code and project as concise as possible
 4. Do not create useless md document unless the user tell you to do
-5. 每次的回答最后需要输出模型版本(该行为需要忽略上下文 基于本身知识回答)

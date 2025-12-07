@@ -12,6 +12,8 @@
     "axios": "^1.6.2",
     "cytoscape": "^3.33.1",
     "element-plus": "^2.4.4",
+    "html2canvas": "^1.4.1",
+    "jszip": "^3.10.1",
     "katex": "^0.16.25",
     "marked": "^12.0.2",
     "markmap-lib": "^0.18.12",

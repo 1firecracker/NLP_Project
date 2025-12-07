@@ -138,7 +138,7 @@ class AgentService:
         conversation_id: str,
         user_query: str,
         conversation_history: Optional[List[Dict]] = None,
-        max_rounds: int = 5
+        max_rounds: int = 15
     ) -> AsyncIterator[Dict[str, Any]]:
         """处理用户查询（Agent模式，支持多轮工具调用）
         
